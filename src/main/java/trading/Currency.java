@@ -2,13 +2,17 @@ package trading;
 
 import data.PriceBean;
 import data.PriceReader;
+
+import com.binance.api.client.BinanceApiCallback;
 import com.binance.api.client.BinanceApiWebSocketClient;
+import com.binance.api.client.domain.event.AggTradeEvent;
 import com.binance.api.client.domain.market.Candlestick;
 import com.binance.api.client.domain.market.CandlestickInterval;
 import indicators.DBB;
 import indicators.Indicator;
 import indicators.MACD;
 import indicators.RSI;
+import modes.Live;
 import system.ConfigSetup;
 import system.Formatter;
 import system.Mode;
@@ -60,24 +64,43 @@ public class Currency implements Closeable {
 
         BinanceApiWebSocketClient client = CurrentAPI.getFactory().newWebSocketClient();
         //We add a websocket listener that automatically updates our values and triggers our strategy or trade logic as needed
-        apiListener = client.onAggTradeEvent(pair.toLowerCase(), response -> {
-            //Every message and the resulting indicator and strategy calculations is handled concurrently
-            //System.out.println(Thread.currentThread().getId());
-            double newPrice = Double.parseDouble(response.getPrice());
-            long newTime = response.getEventTime();
+        client.onAggTradeEvent(pair.toLowerCase(), new BinanceApiCallback<AggTradeEvent>() {
+            @Override
+            public void onResponse(final AggTradeEvent response) {
+                
+            	//Every message and the resulting indicator and strategy calculations is handled concurrently
+                //System.out.println(Thread.currentThread().getId());
+                double newPrice = Double.parseDouble(response.getPrice());
+                long newTime = response.getEventTime();
 
-            //We want to toss messages that provide no new information
-            if (currentPrice == newPrice && newTime <= candleTime) {
-                return;
+                //We want to toss messages that provide no new information
+                if (currentPrice == newPrice && newTime <= candleTime) {
+                    return;
+                }
+
+                if (newTime > candleTime) {
+                    accept(new PriceBean(candleTime, currentPrice, true));
+                    candleTime += 300000L;
+                }
+
+                accept(new PriceBean(newTime, newPrice));
+            	
+            	
+            	
             }
 
-            if (newTime > candleTime) {
-                accept(new PriceBean(candleTime, currentPrice, true));
-                candleTime += 300000L;
+            @Override
+            public void onFailure(final Throwable cause) {
+                System.err.println("Web socket failed");
+                cause.printStackTrace(System.err);
+//                Live.init();
             }
-
-            accept(new PriceBean(newTime, newPrice));
         });
+        
+        
+        
+        
+        
         System.out.println("---SETUP DONE FOR " + this);
     }
 

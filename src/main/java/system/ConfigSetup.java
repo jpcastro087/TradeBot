@@ -2,6 +2,8 @@ package system;
 
 import com.binance.api.client.domain.general.RateLimit;
 import com.binance.api.client.domain.general.RateLimitType;
+import com.binance.api.client.domain.market.TickerStatistics;
+
 import indicators.MACD;
 import indicators.RSI;
 import modes.Simulation;
@@ -33,6 +35,14 @@ public class ConfigSetup {
     }
 
     public static List<String> getCurrencies() {
+    	List<TickerStatistics> pricesStatistics = CurrentAPI.get().getAll24HrPriceStatistics();
+        List<String> currencies = new ArrayList<String>();
+        for (TickerStatistics t: pricesStatistics) {
+            String symbol = t.getSymbol();
+            if(symbol.endsWith("USDT") && !symbol.contains("UP") && !symbol.contains("DOWN")){
+                currencies.add(symbol.substring(0, symbol.length()-4));
+            }
+        }
         return currencies;
     }
 

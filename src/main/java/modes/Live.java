@@ -1,19 +1,29 @@
 package modes;
 
-import com.binance.api.client.domain.account.AssetBalance;
-import com.binance.api.client.domain.general.FilterType;
-import com.binance.api.client.domain.general.SymbolFilter;
-import system.ConfigSetup;
-import system.Formatter;
-import trading.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
+
+import org.json.JSONObject;
+
+import com.binance.api.client.domain.account.AssetBalance;
+import com.binance.api.client.domain.general.FilterType;
+import com.binance.api.client.domain.general.SymbolFilter;
+
+import dbconnection.JDBCPostgres;
+import system.ConfigSetup;
+import system.Formatter;
+import trading.BuySell;
+import trading.Currency;
+import trading.CurrentAPI;
+import trading.LocalAccount;
+import trading.Trade;
+import utils.TradeBotUtil;
 
 
 public final class Live {
@@ -90,11 +100,14 @@ public final class Live {
 
         //TODO: Open price for existing currencies
         String current = "";
+        List<String> currenciesSetup = ConfigSetup.getCurrencies();
+        List<AssetBalance> balances = localAccount.getRealAccount().getBalances();
         try {
             List<String> addedCurrencies = new ArrayList<>();
-            for (AssetBalance balance : localAccount.getRealAccount().getBalances()) {
+            for (AssetBalance balance : balances) {
                 if (balance.getFree().matches("0\\.0+")) continue;
-                if (ConfigSetup.getCurrencies().contains(balance.getAsset())) {
+                if (currenciesSetup.contains(balance.getAsset())) {
+                	Thread.sleep(7000);
                     current = balance.getAsset();
                     Currency balanceCurrency = new Currency(current);
                     currencies.add(balanceCurrency);
@@ -118,15 +131,32 @@ public final class Live {
                             continue;
                         }
                     }
-                    final Trade trade = new Trade(balanceCurrency, balanceCurrency.getPrice(), amount, "Trade opened due to: Added based on live account\t");
+
+                    ResultSet rs =
+                    JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
+                    JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
+
+                    Trade trade = null;
+                    if(null == tradeDbJson){
+                        trade = new Trade(balanceCurrency, balanceCurrency.getPrice(), amount, "Trade opened due to: Added based on live account\t");
+                    } else {
+                        double entrypriceDB = tradeDbJson.getDouble("entryprice");
+                        long openTimeDB = tradeDbJson.getLong("opentime");
+                        double high = tradeDbJson.getDouble("high");
+                        trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
+                        trade.setOpenTime(openTimeDB);
+                        trade.setHigh(high);
+                    }
+
                     localAccount.getActiveTrades().add(trade);
                     balanceCurrency.setActiveTrade(trade);
                     System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
                 }
             }
             localAccount.setStartingValue(localAccount.getTotalValue());
-            for (String arg : ConfigSetup.getCurrencies()) {
+            for (String arg : currenciesSetup) {
                 if (!addedCurrencies.contains(arg)) {
+                	Thread.sleep(7000);
                     current = arg;
                     currencies.add(new Currency(current));
                 }

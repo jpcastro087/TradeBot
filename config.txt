@@ -5,10 +5,10 @@ RSI negative side minimum:70
 RSI negative side maximum:80
 Simulation mode starting value:10000
 Percentage of money per trade:0.2
-Trailing SL:0.1
+Trailing SL:999
 Take profit:0.15
 Confluence:2
 Close confluence:2
-Use confluence to close:true
-Currencies to track:BTC, ETH
+Use confluence to close:false
+Currencies to track:ETH, LINK
 FIAT:USDT

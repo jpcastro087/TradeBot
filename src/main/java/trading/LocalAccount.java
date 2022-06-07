@@ -1,15 +1,23 @@
 package trading;
 
-import com.binance.api.client.domain.account.Account;
-import com.binance.api.client.exception.BinanceApiException;
-import system.ConfigSetup;
-import system.Formatter;
-
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.json.JSONObject;
+
+import com.binance.api.client.domain.account.Account;
+
+import dbconnection.JDBCPostgres;
+import modes.Live;
+import system.ConfigSetup;
+import system.Formatter;
+import system.Mode;
+import utils.TradeBotUtil;
 
 public class LocalAccount {
     private final String username;
@@ -83,11 +91,25 @@ public class LocalAccount {
 
     public void openTrade(Trade trade) {
         activeTrades.add(trade);
+        JDBCPostgres.create("insert into trade (opentime, entryprice, amount, total, high, currency) values (?,?,?,?,?,?)",
+                trade.getOpenTime(),
+                String.format("%.7f", trade.getEntryPrice()),
+                String.format("%.5f", trade.getAmount()),
+                String.format("%.7f", trade.getAmount() * trade.getEntryPrice()),
+                String.format("%.7f", trade.getHigh()),
+                trade.getCurrency().getPair());
     }
 
     public void closeTrade(Trade trade) {
         activeTrades.remove(trade);
+        JDBCPostgres.create("update trade set closetime = ?, closeprice = ? where opentime = ?",
+                trade.getCloseTime(),
+                String.format("%.7f", trade.getClosePrice()),
+                trade.getOpenTime());
         tradeHistory.add(trade);
+        
+//        Live.init();
+        
     }
 
     //All the get methods.
@@ -105,12 +127,76 @@ public class LocalAccount {
 
     public double getTotalValue() {
         double value = 0;
-        for (Map.Entry<Currency, Double> entry : wallet.entrySet()) {
-            Currency currency = entry.getKey();
-            Double amount = entry.getValue();
-            value += amount * currency.getPrice();
-        }
+        ResultSet rs = JDBCPostgres.getResultSet("select currency, amount from trade where closetime is null");
+        List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
+        for (JSONObject jsonObject : jsonObjects) {
+        	String currency = jsonObject.getString("currency");
+        	double amount = jsonObject.getDouble("amount");
+        	value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+		}
         return value + fiatValue;
+    }
+    
+    public double getTotalActualMonedasActivas() {
+        double value = 0;
+        String monedasActivas = getMonedasActivasAsString();
+        monedasActivas = monedasActivas.equals("") ? "'NOROMPASYESTAMOS'" : monedasActivas;
+        ResultSet rs = JDBCPostgres.getResultSet(
+        		"select currency, amount from trade "
+        		+ " where closetime is null "
+        		+ " and currency in (" + monedasActivas + ")");
+        
+        List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
+        for (JSONObject jsonObject : jsonObjects) {
+        	String currency = jsonObject.getString("currency");
+        	Double amount = jsonObject.getDouble("amount");
+        	value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+		}
+        return value ;
+    }
+    
+    
+    
+    public double getTotalInicial(){
+    	ResultSet rs =
+        JDBCPostgres.getResultSet(
+        		"select coalesce(sum(cast( entryprice as float ) * cast(amount as float)), 0) as total "
+        		+ " from trade "
+        		+ " where closetime is null ");
+    	
+    	JSONObject js = TradeBotUtil.resultSetToJSON(rs);
+    	double total = js.getDouble("total");
+    	
+        return total + fiatValue;
+    }
+    
+    
+    public double getTotalInicialMonedasActivas(){
+    	String monedasActivas = getMonedasActivasAsString();
+    	monedasActivas = monedasActivas.equals("") ? "'NOROMPASYESTAMOS'" : monedasActivas;
+    	ResultSet rs =
+        JDBCPostgres.getResultSet(
+        		"select coalesce(sum(cast( entryprice as float ) * cast(amount as float)),0) as total "
+        		+ " from trade "
+        		+ " where closetime is null "
+        		+ " and currency in (" + monedasActivas + ")");
+    	
+    	JSONObject js = TradeBotUtil.resultSetToJSON(rs);
+    	double total = js.getDouble("total");
+    	
+        return total;
+    }
+    
+    private String getMonedasActivasAsString(){
+    	String monedas = "";
+    	if(wallet.entrySet().size() > 0) {
+        	for (Map.Entry<Currency, Double> entry : wallet.entrySet()) {
+                Currency currency = entry.getKey();
+                monedas += "'"+currency.getPair()+"',";
+            }
+        	monedas = monedas.substring(0, monedas.length()-1);
+    	}
+    	return monedas;
     }
 
     public void addToFiat(double amount) {
@@ -133,7 +219,10 @@ public class LocalAccount {
      * @return returns the sum of all the percentages wether the profit is below 0 or above.
      */
     public double getProfit() {
-        return (getTotalValue() - startingValue) / startingValue;
+    	double totalActualMonedasActivas = getTotalActualMonedasActivas();
+    	double totalInicial = getTotalInicial();
+    	double totalInicialMonedasActivas = getTotalInicialMonedasActivas();
+        return ((100 * totalActualMonedasActivas / totalInicial) - ( 100 * totalInicialMonedasActivas / totalInicial)) / 100;
     }
 
 
