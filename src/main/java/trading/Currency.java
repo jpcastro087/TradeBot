@@ -101,10 +101,6 @@ public class Currency implements Closeable {
 
                     accept(new PriceBean(newTime, newPrice));
                     
-                    if(moneda.equals("btcusdt")) {
-                    	System.out.println("onResponse" + moneda);
-                    }
-                    
 				} catch (Exception e) {
 					e.printStackTrace();
 				} 

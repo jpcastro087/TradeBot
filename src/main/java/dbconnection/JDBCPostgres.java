@@ -10,7 +10,7 @@ public class JDBCPostgres {
     public static Connection conn;
 
     public static Connection getConnection() {
-        String url = "jdbc:postgresql://localhost/binance?user=postgres&password=postgres";
+        String url = "jdbc:postgresql://localhost/binance?user=juan&password=123";
         try {
             if (conn == null)
                 conn = DriverManager.getConnection(url);
