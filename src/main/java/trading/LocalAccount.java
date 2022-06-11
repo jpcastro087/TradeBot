@@ -107,9 +107,11 @@ public class LocalAccount {
                 String.format("%.7f", trade.getClosePrice()),
                 trade.getOpenTime());
         tradeHistory.add(trade);
-        
-//        Live.init();
-        
+    }
+    
+    
+    public void closeTradeForThread(Trade trade) {
+        activeTrades.remove(trade);
     }
 
     //All the get methods.
