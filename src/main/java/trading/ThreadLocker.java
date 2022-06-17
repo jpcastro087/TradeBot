@@ -1,18 +1,9 @@
 package trading;
 
-import modes.Live;
-
 public class ThreadLocker {
 
 	private static boolean isBlocked;
 
-	public static void reiniciarMoneda(Currency currency, LocalAccount localAccount) {
-		String moneda = currency.getCoin();
-		Trade trade = currency.getActiveTrade();
-		currency.setActiveTrade(null);
-		localAccount.closeTradeForThread(trade);
-		Live.init(moneda);
-	}
 
 	public static boolean isBlocked() {
 		return isBlocked;
@@ -22,9 +13,10 @@ public class ThreadLocker {
 		ThreadLocker.isBlocked = true;
 		while(isBlocked) {
 			try {
-				Thread.sleep(15000l);
+				Thread.sleep(90000l);
 				CurrentAPI.get().getPrice("BTCUSDT");
 				ThreadLocker.isBlocked = false;
+				System.out.println("YA SE PUEDE OPERAR");
 			} catch (InterruptedException e) {
 			}catch (Exception e) {
 				if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {

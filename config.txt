@@ -18,6 +18,6 @@ user database:postgres
 pass database:postgres
 porcentaje desde:-15
 porcentaje hasta:-20
-tiempo de reinicio:3m
+tiempo de reinicio:10s
 Currencies to track:ASR, CELO, RIF, BTCST, TRU, CKB, TWT, FIRO, LIT, SFP, DODO, CAKE, ACM, BADGER, FIS, OM, POND, DEGO, ALICE, LINA, PERP, RAMP, CFX, EPS, AUTO, TKO, PUNDIX, TLM, BTG, MIR
 FIAT:USDT

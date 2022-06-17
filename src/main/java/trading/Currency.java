@@ -25,6 +25,7 @@ import indicators.DBB;
 import indicators.Indicator;
 import indicators.MACD;
 import indicators.RSI;
+import modes.Live;
 import system.ConfigSetup;
 import system.Formatter;
 import system.Mode;
@@ -144,7 +145,7 @@ public class Currency implements Closeable {
 
     private void accept(PriceBean bean) {
     	try {
-    		if(!ThreadLocker.isBlocked()) {
+    		if(!ThreadLocker.isBlocked() && !Live.isInitializing()) {
     	        //Make sure we dont get concurrency issues
     	        if (currentlyCalculating.get()) {
     	            System.out.println("------------WARNING, NEW THREAD STARTED ON " + pair + " MESSAGE DURING UNFINISHED PREVIOUS MESSAGE CALCULATIONS");
@@ -164,21 +165,21 @@ public class Currency implements Closeable {
     	            int confluence = 0; //0 Confluence should be reserved in the config for doing nothing
     	            currentlyCalculating.set(true);
     	            //We can disable the strategy and trading logic to only check indicator and price accuracy
-    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds()) {
+    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds(pair)) {
     	                confluence = check();
     	            }
     	            if (hasActiveTrade()) { //We only allow one active trade per currency, this means we only need to do one of the following:
     	                activeTrade.update(currentPrice, confluence);//Update the active trade stop-loss and high values
-    	            } else if (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds()) {
+    	            } else if (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair)) {
     	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
     	            }
     	            currentlyCalculating.set(false);
     	        }
     		}
     	}catch(Exception e) {
+    		currentlyCalculating.set(false);
     		if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
-    			System.err.println("ESPERANDO 1.5 MINUTOS PARA ARRANCAR DEVUELTA CON EL THREAD");
-    			currentlyCalculating.set(false);
+    			System.err.println("ESPERANDO 1.5 MINUTOS PARA ARRANCAR DEVUELTA CON LOS THREADS NO OPERE POR FAVOR");
     			ThreadLocker.block();
     		} else {
     			e.printStackTrace();

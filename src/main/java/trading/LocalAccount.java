@@ -110,10 +110,6 @@ public class LocalAccount {
     }
     
     
-    public void closeTradeForThread(Trade trade) {
-        activeTrades.remove(trade);
-    }
-
     //All the get methods.
     public String getUsername() {
         return username;
@@ -133,11 +129,23 @@ public class LocalAccount {
         List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
         for (JSONObject jsonObject : jsonObjects) {
         	String currency = jsonObject.getString("currency");
-        	double amount = jsonObject.getDouble("amount");
-        	value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+        	if(currency.endsWith(ConfigSetup.getFiat())) {
+            	double amount = jsonObject.getDouble("amount");
+            	double price = getPryce(currency);
+            	
+            	if(price == 0) {
+            		value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+            	} else{
+            		value += price * amount;
+            	}
+        	}
 		}
         return value + fiatValue;
     }
+    
+    
+
+    
     
     public double getTotalActualMonedasActivas() {
         double value = 0;
@@ -152,12 +160,26 @@ public class LocalAccount {
         for (JSONObject jsonObject : jsonObjects) {
         	String currency = jsonObject.getString("currency");
         	Double amount = jsonObject.getDouble("amount");
-        	value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+        	double price = getPryce(currency);
+        	
+        	if(price == 0) {
+        		value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
+        	} else{
+        		value += price * amount;
+        	}
 		}
         return value ;
     }
     
-    
+    private Double getPryce(String currency) {
+    	List<Currency> currencies = Live.getCurrencies();
+    	for (Currency currentCurrency : currencies) {
+			if(currentCurrency.getPair().equals(currency)) {
+				return currentCurrency.getPrice();
+			}
+		}
+    	return 0D;
+    }
     
     public double getTotalInicial(){
     	ResultSet rs =

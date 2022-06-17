@@ -6,11 +6,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import system.ConfigSetup;
+
 public class JDBCPostgres {
     public static Connection conn;
 
     public static Connection getConnection() {
-        String url = "jdbc:postgresql://localhost/binance?user=juan&password=123";
+        String url = "jdbc:postgresql://localhost/binance?user="+ConfigSetup.USER_DATABASE+"&password="+ConfigSetup.PASS_DATABASE;
         try {
             if (conn == null)
                 conn = DriverManager.getConnection(url);
