@@ -21,6 +21,7 @@ import com.binance.api.client.domain.market.CandlestickInterval;
 
 import data.PriceBean;
 import data.PriceReader;
+import dbconnection.JDBCPostgres;
 import indicators.DBB;
 import indicators.Indicator;
 import indicators.MACD;
@@ -89,6 +90,15 @@ public class Currency implements Closeable {
                     //System.out.println(Thread.currentThread().getId());
                     double newPrice = Double.parseDouble(response.getPrice());
                     long newTime = response.getEventTime();
+                    
+                    if(null != activeTrade) {
+            	        JDBCPostgres.update("update trade set currentprice = ? where opentime = ?",
+            	                String.format("%.9f", currentPrice),
+            	                activeTrade.getOpenTime());
+                    }
+
+                    
+                    
 
                     //We want to toss messages that provide no new information
                     if (currentPrice == newPrice && newTime <= candleTime) {
@@ -170,7 +180,7 @@ public class Currency implements Closeable {
     	            }
     	            if (hasActiveTrade()) { //We only allow one active trade per currency, this means we only need to do one of the following:
     	                activeTrade.update(currentPrice, confluence);//Update the active trade stop-loss and high values
-    	            } else if (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair)) {
+    	            } else if ( (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair))  || (ConfigSetup.COMPRA_DE_CUALQUIER_MANERA && BuySell.enoughFunds(pair)) ) {
     	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
     	            }
     	            currentlyCalculating.set(false);

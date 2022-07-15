@@ -112,9 +112,10 @@ public class Trade {
 	// Checks if there is a new highest price for the trade or if the trade has
 	// dropped below the stoploss.
 	public void update(double newPrice, int confluence) {
+		
 		if (newPrice > high) {
 			high = newPrice;
-	        JDBCPostgres.create("update trade set high = ? where opentime = ?",
+	        JDBCPostgres.update("update trade set high = ? where opentime = ?",
 	                String.format("%.7f", high),
 	                getOpenTime());
 		}
@@ -149,4 +150,18 @@ public class Trade {
 				+ "\n" + "high: " + high + ", profit: " + Formatter.formatPercent(getProfit()) + "\n" + explanation
 				+ "\n";
 	}
+	
+	
+	public String toString2() {
+		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
+				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
+				+ Formatter.formatDecimal(amount) + " - " + "open: " + Formatter.formatDate(openTime) + " at "
+				+ entryPrice + " - "
+				+"current price: " + currency.getPrice()
+				+" profit: " + Formatter.formatPercent(getProfit());
+	}
+	
+	
+	
+	
 }

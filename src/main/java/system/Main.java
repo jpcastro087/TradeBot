@@ -137,7 +137,7 @@ public class Main {
 					case "active":
 						System.out.println("\nActive trades:");
 						for (Trade trade : localAccount.getActiveTrades()) {
-							System.out.println(trade);
+							System.out.println(trade.toString2());
 						}
 						System.out.println(" ");
 						break;

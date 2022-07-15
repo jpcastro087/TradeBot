@@ -31,9 +31,13 @@ public class ConfigSetup {
     private static Double PORCENTAJE_DESDE;
     private static Double PORCENTAJE_HASTA;
     public static String TIEMPO_REINICIO;
+    public static boolean COMPRA_DE_CUALQUIER_MANERA;
+    public static boolean ESCANER_CURRENCY_TO_TRACK;
+    private static List<String> currenciesNotTrack;
+	private static List<String> currencies;
 
 	private static final StringBuilder setup = new StringBuilder();
-	private static List<String> currencies;
+
 	private static String fiat;
 
 	public ConfigSetup() {
@@ -45,25 +49,46 @@ public class ConfigSetup {
 	}
 
 	public static List<String> getCurrencies() {
+		
+		if(ESCANER_CURRENCY_TO_TRACK) {
+			return getCurrenciesToTrack();
+		} else {
+			return getTodasLasMonedas();
+		}
+		
+	}
+	
+	
+	private static List<String> getCurrenciesToTrack(){
+		return currencies;
+	}
+	
+	
+	
+	
+	private static List<String> getTodasLasMonedas(){
 		List<TickerStatistics> pricesStatistics = CurrentAPI.get().getAll24HrPriceStatistics();
 		List<String> currencies = new ArrayList<String>();
 		for (int i = 0; i < pricesStatistics.size(); i++) {
 			TickerStatistics t = pricesStatistics.get(i);
 			String symbol = t.getSymbol();
-			if (symbol.endsWith(fiat) && !symbol.contains("UP") && !symbol.contains("DOWN")) {
+			if (symbol.endsWith(fiat) && !symbol.endsWith("UP") && !symbol.endsWith("DOWN")) {
 				Double porcentaje = Double.valueOf(t.getPriceChangePercent());
-				if (porcentaje <= PORCENTAJE_DESDE && porcentaje >= PORCENTAJE_HASTA) {
-					currencies.add(symbol.substring(0, symbol.length() - 4));
+				if ( PORCENTAJE_DESDE <= porcentaje && PORCENTAJE_HASTA >= porcentaje) {
+					currencies.add(symbol.substring(0, symbol.length() - fiat.length()));
 				}
 			}
 		}
-
+		
+		currencies.removeAll(currenciesNotTrack);
 		List<String> monedasActivas = getMonedasActivas();
 		currencies.removeAll(monedasActivas);
 		currencies.addAll(monedasActivas);
 
 		return currencies;
 	}
+	
+	
 
 	private static List<String> getMonedasActivas() {
 		List<String> result = new ArrayList<String>();
@@ -145,7 +170,7 @@ public class ConfigSetup {
 					Simulation.STARTING_VALUE = Integer.parseInt(arr[1]);
 					break;
 				case "Currencies to track":
-					currencies = Collections.unmodifiableList(Arrays.asList(arr[1].toUpperCase().split(", ")));
+					currencies = new ArrayList<String>(Arrays.asList(arr[1].toUpperCase().split(", ")));
 					break;
 				case "Percentage of money per trade":
 					BuySell.MONEY_PER_TRADE = Double.parseDouble(arr[1]);
@@ -194,6 +219,15 @@ public class ConfigSetup {
 					break;
 				case "tiempo de reinicio":
 					TIEMPO_REINICIO = String.valueOf(arr[1]);
+					break;
+				case "comprar de cualquier manera":
+					COMPRA_DE_CUALQUIER_MANERA = Boolean.valueOf(arr[1]);
+					break;
+				case "escanear del listado currencies to track":
+					ESCANER_CURRENCY_TO_TRACK = Boolean.valueOf(arr[1]);
+					break;
+				case "Currencies to not track":
+					currenciesNotTrack = Collections.unmodifiableList(Arrays.asList(arr[1].toUpperCase().split(", ")));
 					break;
 				default:
 					items--;

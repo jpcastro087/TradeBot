@@ -102,7 +102,7 @@ public class LocalAccount {
 
     public void closeTrade(Trade trade) {
         activeTrades.remove(trade);
-        JDBCPostgres.create("update trade set closetime = ?, closeprice = ? where opentime = ?",
+        JDBCPostgres.update("update trade set closetime = ?, closeprice = ? where opentime = ?",
                 trade.getCloseTime(),
                 String.format("%.7f", trade.getClosePrice()),
                 trade.getOpenTime());

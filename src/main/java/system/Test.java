@@ -1,9 +1,11 @@
 package system;
 
 import java.sql.ResultSet;
-import java.util.ArrayList;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 
 import org.json.JSONObject;
 
@@ -12,12 +14,21 @@ import utils.TradeBotUtil;
 
 
 public class Test {
-	public static void main(String[] args) {
+	public static void main(String[] args) throws ParseException {
 		
-		int count = getCountTradesCloses24Hours("");
+		Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse("2022-06-12 18:15:03");
 		
-		System.out.println(count);
 		
+//		System.out.println(date.getTime());
+		
+		new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(date);
+		
+		
+		NumberFormat PERCENT_FORMAT = new DecimalFormat("0.000%");
+		
+		Number d = PERCENT_FORMAT.parse("1.33%");
+		Double ss = d.doubleValue();
+		System.out.println(ss * 100);
 		
 		
 	}
