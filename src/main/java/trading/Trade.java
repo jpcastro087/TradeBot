@@ -128,9 +128,11 @@ public class Trade {
 		}
 
 		if (newPrice < high * (1 - TRAILING_SL)) {
-			explanation += "Closed due to: Trailing SL";
-			BuySell.close(this);
-			return;
+			if( (getProfit() * 100) > 1) {
+				explanation += "Closed due to: Trailing SL";
+				BuySell.close(this);
+				return;	
+			}
 		}
 
 		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {

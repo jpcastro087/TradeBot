@@ -30,7 +30,6 @@ public class ConfigSetup {
     public static String PASS_DATABASE;
     private static Double PORCENTAJE_DESDE;
     private static Double PORCENTAJE_HASTA;
-    public static String TIEMPO_REINICIO;
     public static boolean COMPRA_DE_CUALQUIER_MANERA;
     public static boolean ESCANER_CURRENCY_TO_TRACK;
     private static List<String> currenciesNotTrack;
@@ -216,9 +215,6 @@ public class ConfigSetup {
 					break;
 				case "porcentaje hasta":
 					PORCENTAJE_HASTA = Double.valueOf(arr[1]);
-					break;
-				case "tiempo de reinicio":
-					TIEMPO_REINICIO = String.valueOf(arr[1]);
 					break;
 				case "comprar de cualquier manera":
 					COMPRA_DE_CUALQUIER_MANERA = Boolean.valueOf(arr[1]);

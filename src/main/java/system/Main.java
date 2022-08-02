@@ -2,16 +2,12 @@ package system;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.sql.ResultSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import org.json.JSONObject;
-
-import dbconnection.JDBCPostgres;
 import modes.Backtesting;
 import modes.Collection;
 import modes.Live;
@@ -20,7 +16,6 @@ import trading.BuySell;
 import trading.Currency;
 import trading.LocalAccount;
 import trading.Trade;
-import utils.TradeBotUtil;
 
 public class Main {
 	private static final String VERSION = "v0.10.2";
@@ -87,7 +82,6 @@ public class Main {
 				long startTime = System.nanoTime();
 				switch (Mode.get()) {
 				case LIVE:
-					saveOrUpdateProgramStatus();
 					Live.init(); // Init live mode.
 					localAccount = Live.getAccount();
 					currencies = Live.getCurrencies();
@@ -250,23 +244,6 @@ public class Main {
 	}
 	
 	
-	private static void saveOrUpdateProgramStatus() {
-		String directory = getUserDir();
-		ResultSet rs = JDBCPostgres.getResultSet("select proccessid proccessid from restartparams where directory = ?", directory);
-		
-		JSONObject jo = TradeBotUtil.resultSetToJSON(rs);
-		
-		long proccessid = getProcessId();
-		
-		String timeUnit = ConfigSetup.TIEMPO_REINICIO;
-		
-		if(null == jo) {
-			JDBCPostgres.create("insert into restartparams (proccessid, directory, timeunit) values(?,?,?)", proccessid, directory, timeUnit);
-		} else {
-			JDBCPostgres.update("update restartparams set proccessid = ?, timeunit = ? where directory = ?", proccessid,timeUnit, directory);
-		}
-		
-	}
 	
 	
 	
