@@ -50,11 +50,6 @@ public final class Backtesting {
                 Currency currency = new Currency(new File(path).getName().split("_")[0], path);
                 currencies.add(currency);
 
-                for (Trade trade : localAccount.getActiveTrades()) {
-                    trade.setExplanation(trade.getExplanation() + "Manually closed");
-                    BuySell.close(trade);
-                }
-
 
                 int i = 1;
                 path = path.replace("backtesting", "log");

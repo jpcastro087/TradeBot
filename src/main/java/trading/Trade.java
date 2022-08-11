@@ -1,7 +1,6 @@
 package trading;
 
 import dbconnection.JDBCPostgres;
-import system.Formatter;
 
 public class Trade {
 
@@ -111,7 +110,7 @@ public class Trade {
 
 	// Checks if there is a new highest price for the trade or if the trade has
 	// dropped below the stoploss.
-	public void update(double newPrice, int confluence) {
+	public void update(double newPrice) {
 		
 		if (newPrice > high) {
 			high = newPrice;
@@ -135,32 +134,39 @@ public class Trade {
 			}
 		}
 
-		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {
-			explanation += "Closed due to: Indicator confluence of " + confluence;
-			BuySell.close(this);
-		}
 	}
 
 	@Override
 	public String toString() {
-		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
-				+ Formatter.formatDecimal(amount) + "\n" + "open: " + Formatter.formatDate(openTime) + " at "
-				+ entryPrice + "\n"
-				+ (isClosed() ? "close: " + Formatter.formatDate(closeTime) + " at " + closePrice
-						: "current price: " + currency.getPrice())
-				+ "\n" + "high: " + high + ", profit: " + Formatter.formatPercent(getProfit()) + "\n" + explanation
-				+ "\n";
+		
+		
+		//HAY QUE OBTENER LOS DATOS DEL TRADE EN LA BASE DE DATOS PARA MOSTRAR ACA
+		
+		return "";
+		
+//		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
+//				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
+//				+ Formatter.formatDecimal(amount) + "\n" + "open: " + Formatter.formatDate(openTime) + " at "
+//				+ entryPrice + "\n"
+//				+ (isClosed() ? "close: " + Formatter.formatDate(closeTime) + " at " + closePrice
+//						: "current price: " + currency.getPrice())
+//				+ "\n" + "high: " + high + ", profit: " + Formatter.formatPercent(getProfit()) + "\n" + explanation
+//				+ "\n";
 	}
 	
 	
 	public String toString2() {
-		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
-				+ Formatter.formatDecimal(amount) + " - " + "open: " + Formatter.formatDate(openTime) + " at "
-				+ entryPrice + " - "
-				+"current price: " + currency.getPrice()
-				+" profit: " + Formatter.formatPercent(getProfit());
+		
+		//HAY QUE OBTENER LOS DATOS DEL TRADE EN LA BASE DE DATOS PARA MOSTRAR ACA
+		
+		return "";
+		
+//		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
+//				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
+//				+ Formatter.formatDecimal(amount) + " - " + "open: " + Formatter.formatDate(openTime) + " at "
+//				+ entryPrice + " - "
+//				+"current price: " + currency.getPrice()
+//				+" profit: " + Formatter.formatPercent(getProfit());
 	}
 	
 	

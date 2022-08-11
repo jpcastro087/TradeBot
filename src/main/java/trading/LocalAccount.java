@@ -76,10 +76,6 @@ public class LocalAccount {
         return realAccount;
     }
 
-    //All backend.Trade methods
-    public List<Trade> getActiveTrades() {
-        return activeTrades;
-    }
 
     public List<Trade> getTradeHistory() {
         return tradeHistory;
@@ -124,23 +120,7 @@ public class LocalAccount {
     }
 
     public double getTotalValue() {
-        double value = 0;
-        ResultSet rs = JDBCPostgres.getResultSet("select currency, amount from trade where closetime is null");
-        List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
-        for (JSONObject jsonObject : jsonObjects) {
-        	String currency = jsonObject.getString("currency");
-        	if(currency.endsWith(ConfigSetup.getFiat())) {
-            	double amount = jsonObject.getDouble("amount");
-            	double price = getPryce(currency);
-            	
-            	if(price == 0) {
-            		value += Double.valueOf(CurrentAPI.get().getPrice(currency).getPrice()) * amount;
-            	} else{
-            		value += price * amount;
-            	}
-        	}
-		}
-        return value + fiatValue;
+        return fiatValue;
     }
     
     

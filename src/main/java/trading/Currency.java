@@ -11,13 +11,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import com.binance.api.client.BinanceApiCallback;
 import com.binance.api.client.BinanceApiWebSocketClient;
 import com.binance.api.client.domain.event.AggTradeEvent;
-import com.binance.api.client.domain.market.Candlestick;
-import com.binance.api.client.domain.market.CandlestickInterval;
 
 import data.PriceBean;
 import data.PriceReader;
@@ -35,7 +32,6 @@ public class Currency implements Closeable {
     public static int CONFLUENCE_TARGET;
 
     private final String pair;
-    private Trade activeTrade;
     private long candleTime;
     private final List<Indicator> indicators = new ArrayList<>();
     private final AtomicBoolean currentlyCalculating = new AtomicBoolean(false);
@@ -50,6 +46,7 @@ public class Currency implements Closeable {
     private Closeable apiListener;
     private Closeable closeable;
     private String coin;
+    private List<Trade> activeTrades;
     
     private LocalAccount localAccount;
 
@@ -57,18 +54,6 @@ public class Currency implements Closeable {
     public Currency(String coin) {
         this.pair = coin + ConfigSetup.getFiat();
         this.coin = coin;
-
-        //Every currency needs to contain and update our indicators
-        List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.FIVE_MINUTES);
-        List<Double> closingPrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
-        indicators.add(new RSI(closingPrices, 14));
-        indicators.add(new MACD(closingPrices, 12, 26, 9));
-        indicators.add(new DBB(closingPrices, 20));
-
-        //We set the initial values to check against in onMessage based on the latest candle in history
-        currentTime = System.currentTimeMillis();
-        candleTime = history.get(history.size() - 1).getCloseTime();
-        currentPrice = Double.parseDouble(history.get(history.size() - 1).getClose());
 
         dispararThreadActualizador(pair.toLowerCase());
         
@@ -89,28 +74,18 @@ public class Currency implements Closeable {
             		//Every message and the resulting indicator and strategy calculations is handled concurrently
                     //System.out.println(Thread.currentThread().getId());
                     double newPrice = Double.parseDouble(response.getPrice());
-                    long newTime = response.getEventTime();
                     
-                    if(null != activeTrade) {
+                    for (Trade trade : activeTrades) {
             	        JDBCPostgres.update("update trade set currentprice = ? where opentime = ?",
-            	                String.format("%.9f", currentPrice),
-            	                activeTrade.getOpenTime());
-                    }
+            	                String.format("%.9f", newPrice),
+            	                trade.getOpenTime());
+            	        currentPrice = newPrice;
+            	        accept(trade, newPrice);
+					}
+
+
 
                     
-                    
-
-                    //We want to toss messages that provide no new information
-                    if (currentPrice == newPrice && newTime <= candleTime) {
-                        return;
-                    }
-
-                    if (newTime > candleTime) {
-                        accept(new PriceBean(candleTime, currentPrice, true));
-                        candleTime += 300000L;
-                    }
-
-                    accept(new PriceBean(newTime, newPrice));
                     
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -144,7 +119,7 @@ public class Currency implements Closeable {
             indicators.add(new MACD(closingPrices, 12, 26, 9));
             indicators.add(new DBB(closingPrices, 20));
             while (bean != null) {
-                accept(bean);
+//                accept(bean);
                 bean = reader.readPrice();
             }
 
@@ -153,7 +128,7 @@ public class Currency implements Closeable {
         }
     }
 
-    private void accept(PriceBean bean) {
+    private void accept(Trade trade, Double currentPrice) {
     	try {
     		if(!ThreadLocker.isBlocked() && !Live.isInitializing()) {
     	        //Make sure we dont get concurrency issues
@@ -161,28 +136,16 @@ public class Currency implements Closeable {
     	            System.out.println("------------WARNING, NEW THREAD STARTED ON " + pair + " MESSAGE DURING UNFINISHED PREVIOUS MESSAGE CALCULATIONS");
     	        }
 
-    	        currentPrice = bean.getPrice();
-    	        currentTime = bean.getTimestamp();
-
-    	        if (bean.isClosing()) {
-    	            indicators.forEach(indicator -> indicator.update(bean.getPrice()));
-    	            if (Mode.get().equals(Mode.BACKTESTING)) {
-    	                appendLogLine(system.Formatter.formatDate(currentTime) + "  ");
-    	            }
-    	        }
 
     	        if (!currentlyCalculating.get()) {
-    	            int confluence = 0; //0 Confluence should be reserved in the config for doing nothing
     	            currentlyCalculating.set(true);
-    	            //We can disable the strategy and trading logic to only check indicator and price accuracy
-    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds(pair)) {
-    	                confluence = check();
-    	            }
-    	            if (hasActiveTrade()) { //We only allow one active trade per currency, this means we only need to do one of the following:
-    	                activeTrade.update(currentPrice, confluence);//Update the active trade stop-loss and high values
-    	            } else if ( (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair))  || (ConfigSetup.COMPRA_DE_CUALQUIER_MANERA && BuySell.enoughFunds(pair)) ) {
-    	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
-    	            }
+    	            
+    	            this.currentPrice = currentPrice; 
+    	            
+    	            trade.update(currentPrice);
+    	            
+    	            trade.getProfit();
+    	            
     	            currentlyCalculating.set(false);
     	        }
     		}
@@ -225,17 +188,6 @@ public class Currency implements Closeable {
         return currentTime;
     }
 
-    public boolean hasActiveTrade() {
-        return activeTrade != null;
-    }
-
-    public void setActiveTrade(Trade activeTrade) {
-        this.activeTrade = activeTrade;
-    }
-
-    public Trade getActiveTrade() {
-        return activeTrade;
-    }
 
     public void appendLogLine(String s) {
         log.append(s).append("\n");
@@ -306,7 +258,6 @@ public class Currency implements Closeable {
             indicators.forEach(indicator -> s.append(", ").append(indicator.getClass().getSimpleName()).append(": ").append(system.Formatter.formatDecimal(indicator.get())));
         else
             indicators.forEach(indicator -> s.append(", ").append(indicator.getClass().getSimpleName()).append(": ").append(Formatter.formatDecimal(indicator.getTemp(currentPrice))));
-        s.append(", hasActive: ").append(hasActiveTrade()).append(")");
         return s.toString();
     }
 
@@ -335,8 +286,13 @@ public class Currency implements Closeable {
 	public void setLocalAccount(LocalAccount localAccount) {
 		this.localAccount = localAccount;
 	}
-	
-	
-    
+
+	public List<Trade> getActiveTrades() {
+		return activeTrades;
+	}
+
+	public void setActiveTrades(List<Trade> activeTrades) {
+		this.activeTrades = activeTrades;
+	}
     
 }

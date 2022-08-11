@@ -28,10 +28,6 @@ public class BuySell {
 
     private static LocalAccount localAccount;
     public static double MONEY_PER_TRADE;
-    public static boolean AUMENTAR_PORCENTAJE_TRADES_EXITOSOS_24HR;
-    public static int CANTIDAD_TRADES_EXITOSOS_NECESARIOS;
-    public static double PORCENTAJE_PARA_TRADES_EXITOSOS;
-    public static int CANTIDAD_TRADES_ACTIVOS_PERMITIDOS;
 
     public static void setAccount(LocalAccount localAccount) {
         BuySell.localAccount = localAccount;
@@ -51,13 +47,7 @@ public class BuySell {
 
     //Used by strategy
     public static void open(Currency currency, String explanation) {
-    	int cantidadTradesActivos = getCountTradesActivos();
-    	if( cantidadTradesActivos >= CANTIDAD_TRADES_ACTIVOS_PERMITIDOS ) return;
     	String pair = currency.getPair();
-        if (currency.hasActiveTrade()) {
-            System.out.println("---Cannot open trade since there already is an open trade for " + currency.getPair() + "!");
-            return;
-        }
         if (!enoughFunds(pair)) {
             System.out.println("---Out of funds, cannot open trade! (" + Formatter.formatDecimal(localAccount.getFiat()) + ")");
             return; //If no fiat is available, we cant trade
@@ -93,8 +83,6 @@ public class BuySell {
         } else {
             trade = new Trade(currency, currentPrice, amount, explanation);
         }
-
-        currency.setActiveTrade(trade);
 
         //Converting fiat value to coin value
         localAccount.addToFiat(-fiatCost);
@@ -142,7 +130,6 @@ public class BuySell {
 
         //Converting coin value back to fiat
         localAccount.closeTrade(trade);
-        trade.getCurrency().setActiveTrade(null);
 
         String message = "---" + (Formatter.formatDate(trade.getCloseTime())) + " closed trade ("
                 + Formatter.formatDecimal(trade.getAmount()) + " " + trade.getCurrency().getPair()
@@ -153,45 +140,8 @@ public class BuySell {
     }
 
     private static double nextAmount(String pair) {
-    	if(AUMENTAR_PORCENTAJE_TRADES_EXITOSOS_24HR) {
-        	int countCloseTrades24Hr = getCountTradesCloses24Hours(pair);
-        	if(countCloseTrades24Hr >= CANTIDAD_TRADES_EXITOSOS_NECESARIOS) {
-        		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * PORCENTAJE_PARA_TRADES_EXITOSOS );
-        	} else {
-        		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * MONEY_PER_TRADE);
-        	}
-    	} else {
-    		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * MONEY_PER_TRADE);
-    	}
+        return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * MONEY_PER_TRADE);
     }
-    
-    
-    
-    
-    private static int getCountTradesCloses24Hours(String pair) {
-    	ResultSet rs = JDBCPostgres.getResultSet("SELECT count(*) count FROM trade " + 
-    			" where to_timestamp(opentime / 1000) between (NOW() - INTERVAL '1 DAY') and current_timestamp " + 
-    			" and closetime is not null " + 
-    			" and currency = ? ", pair );
-    	
-    	JSONObject countObj = TradeBotUtil.resultSetToJSON(rs);
-    	
-    	int countInt = countObj.getInt("count");
-    	
-    	return countInt;
-    }
-    
-    
-    private static int getCountTradesActivos() {
-    	int cantidad = 0;
-    	
-    	if(null != localAccount.getActiveTrades()) {
-    		cantidad = localAccount.getActiveTrades().size();
-    	}
-    	
-    	return cantidad;
-    }
-
 
     //TODO: Implement limit ordering
     public static NewOrderResponse placeOrder(Currency currency, double amount, boolean buy) {
