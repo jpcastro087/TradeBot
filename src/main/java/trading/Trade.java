@@ -4,20 +4,28 @@ import dbconnection.JDBCPostgres;
 import system.Formatter;
 
 public class Trade {
+	private double high;
 
-	private double high; // Set the highest price
+	public static double TRAILING_SL;
 
-	public static double TRAILING_SL; // It's in percentages, but using double for comfort.
-	public static double TAKE_PROFIT; // It's in percentages, but using double for comfort.
+	public static double TAKE_PROFIT;
+
 	public static boolean CLOSE_USE_CONFLUENCE;
+
 	public static int CLOSE_CONFLUENCE;
 
 	private long openTime;
-	private double entryPrice; // Starting price of a trade (when logic decides to buy)
-	private final Currency currency; // What cryptocurrency is used.
-	private double amount; // How much are you buying or selling. I.E 6 bitcoins or smth.
+
+	private double entryPrice;
+
+	private final Currency currency;
+
+	private double amount;
+
 	private double closePrice;
+
 	private long closeTime;
+
 	private String explanation;
 
 	public Trade(Currency currency, double entryPrice, double amount, String explanation) {
@@ -26,14 +34,12 @@ public class Trade {
 		this.high = entryPrice;
 		this.amount = amount;
 		this.explanation = explanation;
-		openTime = currency.getCurrentTime();
-		closePrice = -1;
+		this.openTime = currency.getCurrentTime();
+		this.closePrice = -1.0D;
 	}
 
-	// Getters and setters
-
 	public String getExplanation() {
-		return explanation;
+		return this.explanation;
 	}
 
 	public void setExplanation(String explanation) {
@@ -45,19 +51,19 @@ public class Trade {
 	}
 
 	public double getEntryPrice() {
-		return entryPrice;
+		return this.entryPrice;
 	}
 
 	public double getClosePrice() {
-		return closePrice;
+		return this.closePrice;
 	}
 
-	public Currency getCurrency() { // for getting the currency to calculate what the price is now.
-		return currency;
+	public Currency getCurrency() {
+		return this.currency;
 	}
 
 	public double getAmount() {
-		return amount;
+		return this.amount;
 	}
 
 	public void setAmount(double amount) {
@@ -69,11 +75,11 @@ public class Trade {
 	}
 
 	public long getCloseTime() {
-		return closeTime;
+		return this.closeTime;
 	}
 
 	public long getOpenTime() {
-		return openTime;
+		return this.openTime;
 	}
 
 	public void setOpenTime(long openTime) {
@@ -85,85 +91,74 @@ public class Trade {
 	}
 
 	public boolean isClosed() {
-		return closePrice != -1;
+		return (this.closePrice != -1.0D);
 	}
 
 	public double getHigh() {
-		return high;
+		return this.high;
 	}
 
 	public void setHigh(double high) {
 		this.high = high;
 	}
 
-	// Allows user to get the profit percentages on one specific trade.
 	public double getProfit() {
-		if (closePrice == -1) {
-			return (currency.getPrice() - entryPrice) / entryPrice;
-		} else {
-			return (closePrice - entryPrice) / entryPrice;
-		}
+		if (this.closePrice == -1.0D)
+			return (this.currency.getPrice() - this.entryPrice) / this.entryPrice;
+		return (this.closePrice - this.entryPrice) / this.entryPrice;
+	}
+
+	public double getHighProfit() {
+		return (this.high - this.entryPrice) / this.entryPrice;
 	}
 
 	public long getDuration() {
-		return (closeTime - openTime);
+		return this.closeTime - this.openTime;
 	}
 
-	// Checks if there is a new highest price for the trade or if the trade has
-	// dropped below the stoploss.
 	public void update(double newPrice, int confluence) {
-		
-		if (newPrice > high) {
-			high = newPrice;
-	        JDBCPostgres.update("update trade set high = ? where opentime = ?",
-	                String.format("%.7f", high),
-	                getOpenTime());
+		if (newPrice > this.high) {
+			this.high = newPrice;
+			JDBCPostgres.update("update trade set high = ? where opentime = ?", new Object[] {
+					String.format("%.7f", new Object[] { Double.valueOf(this.high) }), Long.valueOf(getOpenTime()) });
 		}
-			
-
 		if (getProfit() > TAKE_PROFIT) {
-			explanation += "Closed due to: Take profit";
+			this.explanation = String.valueOf(this.explanation) + "Closed due to: Take profit";
 			BuySell.close(this);
 			return;
 		}
-
-		if (newPrice < high * (1 - TRAILING_SL)) {
-			if( (getProfit() * 100) > 1) {
-				explanation += "Closed due to: Trailing SL";
-				BuySell.close(this);
-				return;	
-			}
+		if (Double.valueOf(TRAILING_SL).doubleValue() == 99.99D)
+			return;
+		if (newPrice < this.high * (1.0D - getHighProfit() / 3.0D) && getProfit() * 100.0D > 4.0D) {
+			this.explanation = String.valueOf(this.explanation) + "Closed due to: Trailing SL";
+			BuySell.close(this);
+			return;
 		}
-
 		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {
-			explanation += "Closed due to: Indicator confluence of " + confluence;
+			this.explanation = String.valueOf(this.explanation) + "Closed due to: Indicator confluence of "
+					+ confluence;
 			BuySell.close(this);
 		}
 	}
 
-	@Override
 	public String toString() {
-		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
-				+ Formatter.formatDecimal(amount) + "\n" + "open: " + Formatter.formatDate(openTime) + " at "
-				+ entryPrice + "\n"
-				+ (isClosed() ? "close: " + Formatter.formatDate(closeTime) + " at " + closePrice
-						: "current price: " + currency.getPrice())
-				+ "\n" + "high: " + high + ", profit: " + Formatter.formatPercent(getProfit()) + "\n" + explanation
-				+ "\n";
+		return String
+				.valueOf(isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
+						: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1))
+				+ " " + this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + "\n" + "open: "
+				+ Formatter.formatDate(this.openTime) + " at " + this.entryPrice + "\n"
+				+ (isClosed() ? ("close: " + Formatter.formatDate(this.closeTime) + " at " + this.closePrice)
+						: ("current price: " + this.currency.getPrice()))
+				+ "\n" + "high: " + this.high + ", profit: " + Formatter.formatPercent(getProfit()) + "\n"
+				+ this.explanation + "\n";
 	}
-	
-	
+
 	public String toString2() {
-		return (isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-				: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1)) + " " + currency.getPair() + " "
-				+ Formatter.formatDecimal(amount) + " - " + "open: " + Formatter.formatDate(openTime) + " at "
-				+ entryPrice + " - "
-				+"current price: " + currency.getPrice()
-				+" profit: " + Formatter.formatPercent(getProfit());
+		return String
+				.valueOf(isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
+						: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1))
+				+ " " + this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + " - " + "open: "
+				+ Formatter.formatDate(this.openTime) + " at " + this.entryPrice + " - " + "current price: "
+				+ this.currency.getPrice() + " profit: " + Formatter.formatPercent(getProfit());
 	}
-	
-	
-	
-	
 }
