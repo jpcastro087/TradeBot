@@ -4,23 +4,23 @@ RSI positive side maximum:30
 RSI negative side minimum:70
 RSI negative side maximum:80
 Simulation mode starting value:10000
-Percentage of money per trade:0.00
-Trailing SL:0.1
-Take profit:99.99
+Percentage of money per trade:0.0
+Trailing SL:0.06
+Take profit:0.02
 Confluence:3
 Close confluence:3
 Use confluence to close:false
-aumentar porcentaje de trades exitosos en 24hr:true
+aumentar porcentaje de trades exitosos en 24hr:false
 cantidad trades exitosos necesarios:3
 porcentaje para trades exitosos:0.2
 cantidad trades permitidos:1
 user database:postgres
 pass database:postgres
-porcentaje desde:-99
+porcentaje desde: -99
 porcentaje hasta: 99
 tiempo de reinicio:1h
 comprar de cualquier manera:false
-escanear del listado currencies to track:true
-Currencies to track:VGX
+escanear del listado currencies to track:false
+Currencies to track:PROS
 Currencies to not track:LUNC, USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
-FIAT:USDT
+FIAT:BUSD

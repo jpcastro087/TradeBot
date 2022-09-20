@@ -115,6 +115,7 @@ public class Trade {
 	public long getDuration() {
 		return this.closeTime - this.openTime;
 	}
+	
 
 	public void update(double newPrice, int confluence) {
 		if (newPrice > this.high) {
@@ -129,11 +130,13 @@ public class Trade {
 		}
 		if (Double.valueOf(TRAILING_SL).doubleValue() == 99.99D)
 			return;
-		if (newPrice < this.high * (1.0D - getHighProfit() / 3.0D) && getProfit() * 100.0D > 4.0D) {
+		
+		if (newPrice < this.high * (1.0D - getHighProfit() / 1.5D) && getProfit() * 100.0D > 5) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Trailing SL";
 			BuySell.close(this);
 			return;
 		}
+		
 		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Indicator confluence of "
 					+ confluence;

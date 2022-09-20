@@ -2,6 +2,7 @@ package trading;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,12 +103,29 @@ public class LocalAccount {
 
     public void closeTrade(Trade trade) {
         activeTrades.remove(trade);
+        
+    	ResultSet rs = JDBCPostgres.getResultSet("select currentprice currentprice, amount amount from trade where closetime is null and currency = ?", trade.getCurrency().getPair() );
+    	JSONObject jsonObject = TradeBotUtil.resultSetToJSON(rs);
+        
+    	double amount = jsonObject.getDouble("amount");
+    	double price = jsonObject.getDouble("currentprice");
+        Double monto = price * amount;
+        String moneda = trade.getCurrency().getPair();
+        
+        
         JDBCPostgres.update("update trade set closetime = ?, closeprice = ? where opentime = ?",
-                trade.getCloseTime(),
-                String.format("%.7f", trade.getClosePrice()),
+                new Date().getTime(),
+                String.format("%.7f", monto),
                 trade.getOpenTime());
+        
+        JDBCPostgres.update("update monedamonto set monto = ? where moneda = ?", String.format("%.7f", monto), moneda);
+    	
         tradeHistory.add(trade);
+
     }
+    
+    
+    
     
     
     //All the get methods.

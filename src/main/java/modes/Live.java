@@ -6,15 +6,26 @@ import java.nio.file.Files;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 
 import org.json.JSONObject;
 
+import com.binance.api.client.domain.OrderSide;
+import com.binance.api.client.domain.OrderStatus;
 import com.binance.api.client.domain.account.AssetBalance;
+import com.binance.api.client.domain.account.Order;
+import com.binance.api.client.domain.account.TradeHistoryItem;
+import com.binance.api.client.domain.account.request.AllOrdersRequest;
+import com.binance.api.client.domain.account.request.OrderRequest;
+import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.domain.general.FilterType;
 import com.binance.api.client.domain.general.SymbolFilter;
+import com.binance.api.client.domain.market.AggTrade;
+import com.binance.api.client.domain.market.OrderBook;
 
 import dbconnection.JDBCPostgres;
 import system.ConfigSetup;
@@ -111,122 +122,160 @@ public final class Live {
         	currenciesSetup = ConfigSetup.getCurrencies();
         }
         List<AssetBalance> balances = localAccount.getRealAccount().getBalances();
-        try {
-            List<String> addedCurrencies = new ArrayList<>();
-            for (AssetBalance balance : balances) {
-            	try {
-            		if (balance.getFree().matches("0\\.0+")) continue;
-                    if (currenciesSetup.contains(balance.getAsset())) {
-//                    	Thread.sleep(2000);
-                        current = balance.getAsset();
-                        Currency balanceCurrency = new Currency(current);
-                        balanceCurrency.setLocalAccount(localAccount);
-                        addedCurrencies.add(current);
-                        double amount = Double.parseDouble(balance.getFree());
-                        localAccount.getWallet().put(balanceCurrency, amount);
-                        double price = Double.parseDouble(CurrentAPI.get().getPrice(current + ConfigSetup.getFiat()).getPrice());
-                        Optional<String> lotSize = CurrentAPI.get().getExchangeInfo().getSymbolInfo(current + ConfigSetup.getFiat()).getFilters().stream().filter(f -> FilterType.LOT_SIZE == f.getFilterType()).findFirst().map(f1 -> f1.getMinQty());
-                        Optional<String> minNotational = CurrentAPI.get().getExchangeInfo().getSymbolInfo(current + ConfigSetup.getFiat()).getFilters().stream().filter(f -> FilterType.MIN_NOTIONAL == f.getFilterType()).findFirst().map(SymbolFilter::getMinNotional);
-                        
-                        
-                        ResultSet rs =
-                        JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
-                        JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
+        List<String> monedasActivas = ConfigSetup.getMonedasActivas();
 
-                        Trade trade = null;
-                        
-                        if (null != tradeDbJson) {
-                        	double entrypriceDB = tradeDbJson.getDouble("entryprice");
-                            long openTimeDB = tradeDbJson.getLong("opentime");
-                            double high = tradeDbJson.getDouble("high");
-                            trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
-                            trade.setOpenTime(openTimeDB);
-                            trade.setHigh(high);
-                            localAccount.getActiveTrades().add(trade);
-                            balanceCurrency.setActiveTrade(trade);
-                            System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
-                        }
-                        
-                        currencies.add(balanceCurrency);
-                        
-                        
-                        if (lotSize.isPresent()) {
-                            if (amount < Double.parseDouble(lotSize.get())) {
-                                System.out.println(balance.getFree() + " " + current + " is less than LOT_SIZE " + lotSize.get());
-                                continue;
+        balances = getBalancesOrdenadosByMonedasActivas(balances, monedasActivas);
+        
+        while(true) {
+            try {
+                List<String> addedCurrencies = new ArrayList<>();
+                long start = System.currentTimeMillis();
+                for (AssetBalance balance : balances) {
+                	try {
+                		if (balance.getFree().matches("0\\.0+")) continue;
+                        if (currenciesSetup.contains(balance.getAsset())) {
+//                        	Thread.sleep(2000);
+                            current = balance.getAsset();
+                            Currency balanceCurrency = new Currency(current);
+                            
+                            if(!balanceCurrency.esAptaParaComprar() && !monedasActivas.contains(current))continue;
+                            
+                            balanceCurrency.setLocalAccount(localAccount);
+                            addedCurrencies.add(current);
+                            double amount = Double.parseDouble(balance.getFree());
+                            localAccount.getWallet().put(balanceCurrency, amount);
+                            double price = Double.parseDouble(CurrentAPI.get().getPrice(current + ConfigSetup.getFiat()).getPrice());
+                            Optional<String> lotSize = CurrentAPI.get().getExchangeInfo().getSymbolInfo(current + ConfigSetup.getFiat()).getFilters().stream().filter(f -> FilterType.LOT_SIZE == f.getFilterType()).findFirst().map(f1 -> f1.getMinQty());
+                            Optional<String> minNotational = CurrentAPI.get().getExchangeInfo().getSymbolInfo(current + ConfigSetup.getFiat()).getFilters().stream().filter(f -> FilterType.MIN_NOTIONAL == f.getFilterType()).findFirst().map(SymbolFilter::getMinNotional);
+                            
+                            
+                            ResultSet rs =
+                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
+                            JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
+
+                            Trade trade = null;
+                            
+                            if (null != tradeDbJson) {
+                            	double entrypriceDB = tradeDbJson.getDouble("entryprice");
+                                long openTimeDB = tradeDbJson.getLong("opentime");
+                                double high = tradeDbJson.getDouble("high");
+                                trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
+                                trade.setOpenTime(openTimeDB);
+                                trade.setHigh(high);
+                                localAccount.getActiveTrades().add(trade);
+                                balanceCurrency.setActiveTrade(trade);
+                                System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
                             }
-                        }
-                        if (minNotational.isPresent()) {
-                            if (amount * price < Double.parseDouble(minNotational.get())) {
-                                System.out.println(current + " notational value of "
-                                        + Formatter.formatDecimal(amount * price) + " is less than min notational "
-                                        + minNotational.get());
-                                continue;
+                            
+                            currencies.add(balanceCurrency);
+                            
+                            
+                            if (lotSize.isPresent()) {
+                                if (amount < Double.parseDouble(lotSize.get())) {
+                                    System.out.println(balance.getFree() + " " + current + " is less than LOT_SIZE " + lotSize.get());
+                                    continue;
+                                }
                             }
+                            if (minNotational.isPresent()) {
+                                if (amount * price < Double.parseDouble(minNotational.get())) {
+                                    System.out.println(current + " notational value of "
+                                            + Formatter.formatDecimal(amount * price) + " is less than min notational "
+                                            + minNotational.get());
+                                    localAccount.closeTrade(trade);
+                                    continue;
+                                }
+                            }
+                            
+                            
+
+
+//                            trade = new Trade(balanceCurrency, balanceCurrency.getPrice(), amount, "Trade opened due to: Added based on live account\t");
+    //
+//                            localAccount.getActiveTrades().add(trade);
+//                            balanceCurrency.setActiveTrade(trade);
+//                            System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
                         }
-                        
-                        
-
-
-//                        trade = new Trade(balanceCurrency, balanceCurrency.getPrice(), amount, "Trade opened due to: Added based on live account\t");
-//
-//                        localAccount.getActiveTrades().add(trade);
-//                        balanceCurrency.setActiveTrade(trade);
-//                        System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
-                    }
-            	}catch(Exception e) {
-                    System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-                    System.out.println(e.getLocalizedMessage());
-                    if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
-                        System.out.println("Esperando 1 Minuto...");
-                        Thread.sleep(60000);
-                    }
-                    continue;
-            	}
+                	}catch(Exception e) {
+                        System.out.println("---Could not add " + current + ConfigSetup.getFiat());
+                        System.out.println(e.getLocalizedMessage());
+                        if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
+                            System.out.println("Esperando 1 Minuto...");
+                            Thread.sleep(30000);
+                        }
+                        continue;
+                	}
+                    
+                }
                 
-            }
-            localAccount.setStartingValue(localAccount.getTotalValue());
-            for (String arg : currenciesSetup) {
-            	try {
-                    if (!addedCurrencies.contains(arg)) {
-//                    	Thread.sleep(2000);
-                        current = arg;
-                        Currency balanceCurrency = new Currency(current);
-                        balanceCurrency.setLocalAccount(localAccount);
-                        currencies.add(balanceCurrency);
-                        
-                        ResultSet rs =
-                        JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
-                        JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
-                        
-                        Trade trade = null;
-                        if(null != tradeDbJson){
-                            double entrypriceDB = tradeDbJson.getDouble("entryprice");
-                            long openTimeDB = tradeDbJson.getLong("opentime");
-                            double high = tradeDbJson.getDouble("high");
-                            double amount = tradeDbJson.getDouble("amount");
-                            trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
-                            trade.setOpenTime(openTimeDB);
-                            trade.setHigh(high);
-                            localAccount.getActiveTrades().add(trade);
-                            balanceCurrency.setActiveTrade(trade);
+                for (String arg : currenciesSetup) {
+                	try {
+                        if (!addedCurrencies.contains(arg)) {
+//                        	Thread.sleep(2000);
+                            current = arg;
+                            Currency balanceCurrency = new Currency(current);
+                            
+                            if(!balanceCurrency.esAptaParaComprar() && !monedasActivas.contains(current))continue;
+                            
+                            balanceCurrency.setLocalAccount(localAccount);
+                            currencies.add(balanceCurrency);
+                            
+                            ResultSet rs =
+                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
+                            JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
+                            
+                            Trade trade = null;
+                            if(null != tradeDbJson){
+                                double entrypriceDB = tradeDbJson.getDouble("entryprice");
+                                long openTimeDB = tradeDbJson.getLong("opentime");
+                                double high = tradeDbJson.getDouble("high");
+                                double amount = tradeDbJson.getDouble("amount");
+                                trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
+                                trade.setOpenTime(openTimeDB);
+                                trade.setHigh(high);
+                                localAccount.getActiveTrades().add(trade);
+                                balanceCurrency.setActiveTrade(trade);
+                            }
+                            
+                            
+                            AllOrdersRequest allOrdersRequest = new AllOrdersRequest(current + ConfigSetup.getFiat());
+                            
+                            List<Order> orders = CurrentAPI.get().getAllOrders(allOrdersRequest);
+                            
+                            orders.sort(Comparator.comparing(Order::getTime).reversed());
+                            
+                            Order order = orders.get(0);
+                            
+                            if (order.getSide().equals(OrderSide.SELL)) {
+                                localAccount.closeTrade(trade);
+                                continue;
+                            }
+                            
+                            
                         }
-                    }
-            	}catch(Exception e) {
-                    System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-                    System.out.println(e.getLocalizedMessage());
-                    if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
-                        System.out.println("Esperando 1 Minuto...");
-                        Thread.sleep(60000);
-                    }
-                    continue;
-            	}
+                	}catch(Exception e) {
+                        System.out.println("---Could not add " + current + ConfigSetup.getFiat());
+                        System.out.println(e.getLocalizedMessage());
+                        if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
+                            System.out.println("Esperando 1 Minuto...");
+                            Thread.sleep(30000);
+                        }
+                        continue;
+                	}
+                }
+                localAccount.setStartingValue(localAccount.getTotalValue());
+                long end = System.currentTimeMillis();
+                float sec = (end - start) / 1000F; System.out.println("tardó: "+ sec + " seconds");
+                
+            } catch (Exception e) {
+                System.out.println("---Could not add " + current + ConfigSetup.getFiat());
+                System.out.println(e.getMessage());
             }
-        } catch (Exception e) {
-            System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-            System.out.println(e.getMessage());
+            initializing = false;
+            
         }
-        initializing = false;
+        
+
+        
     }
 
     public static void refreshWalletAndTrades() {
@@ -263,6 +312,24 @@ public final class Live {
                 }
             }
         }
+    }
+    
+    
+    private static List<AssetBalance> getBalancesOrdenadosByMonedasActivas(List<AssetBalance> balances, List<String> monedasActivas){
+    	List<AssetBalance> balancesOrdenados = new ArrayList<AssetBalance>();
+    	List<AssetBalance> balancesPrimeros = new ArrayList<AssetBalance>();
+    	if(null != monedasActivas && !monedasActivas.isEmpty()) {
+    		for (AssetBalance assetBalance : balancesPrimeros) {
+				if(monedasActivas.contains(assetBalance.getAsset())) {
+					balancesPrimeros.add(assetBalance);
+				} else {
+					balancesOrdenados.add(assetBalance);
+				}
+			}
+    		balancesOrdenados.addAll(balancesPrimeros);
+    		Collections.reverse(balancesOrdenados);
+    	}
+    	return balancesOrdenados;
     }
     
     

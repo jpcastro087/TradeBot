@@ -70,8 +70,9 @@ public class ConfigSetup {
 		List<String> currencies = new ArrayList<String>();
 		for (int i = 0; i < pricesStatistics.size(); i++) {
 			TickerStatistics t = pricesStatistics.get(i);
-			String symbol = t.getSymbol();
-			if (symbol.endsWith(fiat) && !symbol.endsWith("UP") && !symbol.endsWith("DOWN")) {
+			String symbol = t.getSymbol().toString().toUpperCase().trim();
+			
+			if (symbol.endsWith(fiat) && ( !symbol.contains("UP") && !symbol.contains("DOWN") )) {
 				Double porcentaje = Double.valueOf(t.getPriceChangePercent());
 				if ( PORCENTAJE_DESDE <= porcentaje && PORCENTAJE_HASTA >= porcentaje) {
 					currencies.add(symbol.substring(0, symbol.length() - fiat.length()));
@@ -83,13 +84,14 @@ public class ConfigSetup {
 		List<String> monedasActivas = getMonedasActivas();
 		currencies.removeAll(monedasActivas);
 		currencies.addAll(monedasActivas);
+		Collections.reverse(currencies);
 
 		return currencies;
 	}
 	
 	
 
-	private static List<String> getMonedasActivas() {
+	public static List<String> getMonedasActivas() {
 		List<String> result = new ArrayList<String>();
 		ResultSet rs = JDBCPostgres.getResultSet("select currency from trade where closetime is null");
 		

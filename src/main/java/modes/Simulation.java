@@ -7,6 +7,7 @@ import trading.BuySell;
 import trading.Currency;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +38,7 @@ public final class Simulation {
         }
     }
 
-    public static void init() {
+    public static void init() throws ParseException {
         localAccount = new LocalAccount("Investor Toomas", STARTING_VALUE);
         BuySell.setAccount(localAccount);
 

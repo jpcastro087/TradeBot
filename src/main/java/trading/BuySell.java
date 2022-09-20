@@ -17,6 +17,7 @@ import utils.TradeBotUtil;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
+import java.util.Date;
 import java.util.Optional;
 
 import org.json.JSONObject;
@@ -64,12 +65,23 @@ public class BuySell {
         }
 
         double currentPrice = currency.getPrice(); //Current price of the currency
-        double fiatCost = nextAmount(pair);
+        
+        double fiatCost = 0D;
+        
+		Double monto = getSiguienteMontoByMoneda(pair);
+		if(null == monto) {
+			fiatCost = nextAmount(pair);
+			JDBCPostgres.update("insert into monedamonto(moneda, monto) values(?,?)", pair, String.format("%.7f", fiatCost) );
+		} else {
+			fiatCost = Math.min(localAccount.getFiat(), monto);
+		}
+        
+        
         double amount = fiatCost / currency.getPrice();
 
-        Trade trade;
+        Trade trade = null;
         if (Mode.get().equals(Mode.LIVE)) {
-            NewOrderResponse order = placeOrder(currency, amount, true);
+            NewOrderResponse order = placeOrder(currency, amount, true, trade);
             if (order == null) {
                 return;
             }
@@ -93,7 +105,7 @@ public class BuySell {
         } else {
             trade = new Trade(currency, currentPrice, amount, explanation);
         }
-
+        
         currency.setActiveTrade(trade);
 
         //Converting fiat value to coin value
@@ -112,7 +124,7 @@ public class BuySell {
     //Used by trade
     public static void close(Trade trade) {
         if (Mode.get().equals(Mode.LIVE)) {
-            NewOrderResponse order = placeOrder(trade.getCurrency(), trade.getAmount(), false);
+            NewOrderResponse order = placeOrder(trade.getCurrency(), trade.getAmount(), false, trade);
             if (order == null) {
                 return;
             }
@@ -168,6 +180,22 @@ public class BuySell {
     
     
     
+    
+    private static Double getSiguienteMontoByMoneda(String pair) {
+    	ResultSet rs = JDBCPostgres.getResultSet(" select monto monto from monedamonto where moneda = ? ", pair );
+    	
+    	JSONObject jsonObject = TradeBotUtil.resultSetToJSON(rs);
+    	
+    	Double mountoDouble = null;
+    	if(null != jsonObject) {
+    		String monto = jsonObject.getString("monto");
+    		mountoDouble = Double.valueOf(monto);
+    	}
+    	
+    	return mountoDouble;
+    }
+    
+    
     private static int getCountTradesCloses24Hours(String pair) {
     	ResultSet rs = JDBCPostgres.getResultSet("SELECT count(*) count FROM trade " + 
     			" where to_timestamp(opentime / 1000) between (NOW() - INTERVAL '1 DAY') and current_timestamp " + 
@@ -194,7 +222,7 @@ public class BuySell {
 
 
     //TODO: Implement limit ordering
-    public static NewOrderResponse placeOrder(Currency currency, double amount, boolean buy) {
+    public static NewOrderResponse placeOrder(Currency currency, double amount, boolean buy, Trade trade) {
         System.out.println("\n---Placing a " + (buy ? "buy" : "sell") + " market order for " + currency.getPair());
         BigDecimal originalDecimal = BigDecimal.valueOf(amount);
         //Round amount to base precision and LOT_SIZE
@@ -243,6 +271,21 @@ public class BuySell {
         } catch (BinanceApiException e) {
             System.out.println("---Failed " + (buy ? "buy" : "sell") + " " + convertedAmount + " " + currency.getPair());
             System.out.println(e.getMessage());
+            
+            if(!buy) {
+            	if(e.getMessage().equals("Account has insufficient balance for requested action.")) {
+                	ResultSet rs = JDBCPostgres.getResultSet("select count(*) count from trade where closetime is null and currency = ?", currency.getPair() );
+                	JSONObject countObj = TradeBotUtil.resultSetToJSON(rs);
+                	int countInt = countObj.getInt("count");
+                	if(countInt > 0) {
+                		if(null != trade) {
+                			localAccount.closeTrade(trade);
+                		}
+                	}
+            	}
+            }
+            
+            
             return null;
         }
     }

@@ -4,12 +4,17 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -52,27 +57,388 @@ public class Currency implements Closeable {
     private String coin;
     
     private LocalAccount localAccount;
+    
+    private boolean esAptaParaComprar;
 
     //Used for SIMULATION and LIVE
-    public Currency(String coin) {
+    public Currency(String coin) throws ParseException {
         this.pair = coin + ConfigSetup.getFiat();
         this.coin = coin;
 
         //Every currency needs to contain and update our indicators
-        List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.FIVE_MINUTES);
+        List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.ONE_MINUTE);
+        
+        List<String> monedasActivas = ConfigSetup.getMonedasActivas();
+//        if(!esVolatil(history) && !monedasActivas.contains(coin)) return;
+        
         List<Double> closingPrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
-        indicators.add(new RSI(closingPrices, 14));
-        indicators.add(new MACD(closingPrices, 12, 26, 9));
-        indicators.add(new DBB(closingPrices, 20));
+        indicators.add(new RSI(closingPrices, 1));
+        indicators.add(new MACD(closingPrices, 1, 1, 1));
+        indicators.add(new DBB(closingPrices, 1));
 
         //We set the initial values to check against in onMessage based on the latest candle in history
         currentTime = System.currentTimeMillis();
-        candleTime = history.get(history.size() - 1).getCloseTime();
-        currentPrice = Double.parseDouble(history.get(history.size() - 1).getClose());
-
-        dispararThreadActualizador(pair.toLowerCase());
+        candleTime = history.get(history.size()-1).getCloseTime();
+        currentPrice = Double.parseDouble(history.get(history.size()-1).getClose());
         
-        System.out.println("---SETUP DONE FOR " + this);
+        
+        
+        if(history.size() <= 7) {
+        	this.esAptaParaComprar = true;
+        }
+        
+        
+//        esAptaParaComprar = esAptaParaComprar(history);
+//        imprimirPorcentajes(history);
+//        imprimirPorcentajesSemanales();
+        
+
+        Set<String> monedasEnScanner = CacheClient.getMonedas();
+        
+        if(esAptaParaComprar || monedasActivas.contains(coin) ) {
+        	if(!monedasEnScanner.contains(pair.toLowerCase())) {
+            	dispararThreadActualizador(pair.toLowerCase());
+            	if(!monedasActivas.contains(coin)) {
+            		System.out.println(coin+ " ES APTA PARA COMPRAR");
+            		BuySell.open(this, "ES APTA PARA COMPRAR");
+            	}
+        	}
+        }
+        
+//        System.out.println("---	j	SETUP DONE FOR " + this);
+    }
+    
+    
+    
+    
+    public boolean esAptaParaComprar() {
+    	return this.esAptaParaComprar;
+    }
+    
+    
+    
+    private void imprimirPorcentajesSemanales() throws ParseException {
+    	
+    	
+    	
+    	Calendar cal = Calendar.getInstance();
+    	cal.setTime(new Date());
+    	cal.add(Calendar.DATE, -1000);
+    	Date dateBefore1000Days = cal.getTime();
+    	
+    	long fechaDesde =  dateBefore1000Days.getTime();
+    	long fechaHasta =  new Date().getTime();
+    	
+    	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.DAILY, 1000, fechaDesde, fechaHasta);
+    	
+    	int diasAtras = 90;
+    	
+    	
+    	if(history.size() < diasAtras) {
+    		diasAtras = history.size();
+    	}
+    	
+    	
+    	List<Candlestick> historyTresMesesAtras = history.subList(history.size()-diasAtras, history.size());
+    	double primerCierre = Double.valueOf(historyTresMesesAtras.get(0).getClose());
+    	
+    	
+    	for (Candlestick candlestick : historyTresMesesAtras) {
+    		double currentClose = Double.valueOf(candlestick.getClose());
+    		Double porcentajeIncremento = ((currentClose-primerCierre)/primerCierre)*100;
+    		String closeTime = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(candlestick.getOpenTime()));
+			System.out.println(closeTime + " "+ candlestick.getClose() + " " + porcentajeIncremento + "%");
+		}
+    	
+    }
+    
+    
+    
+    
+    private void imprimirPorcentajes(List<Candlestick> history) {
+    	
+    	
+//    	if(!esVolatil(history)) return;
+    	
+    	List<Double> closePrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
+    	List<Double> openPrices = history.stream().map(candle -> Double.parseDouble(candle.getOpen())).collect(Collectors.toList());
+    	List<Double> highPrices = history.stream().map(candle -> Double.parseDouble(candle.getHigh())).collect(Collectors.toList());
+    	List<Double> lowPrices = history.stream().map(candle -> Double.parseDouble(candle.getLow())).collect(Collectors.toList());
+    	
+    	
+        boolean tradeActivo = false;
+        Double precioCompra = null;
+        String openTimeCompra = null;
+        String closeTimeCompra = null;
+        Double porcentajeGlobal = 0D;
+    	for (int i = 120; i < history.size(); i++) {
+    		List<Double> subListClose = closePrices.subList(0, i);
+    		List<Double> subListOpen = openPrices.subList(0, i);
+    		List<Double> subListHigh = highPrices.subList(0, i);
+    		List<Double> subListLow = lowPrices.subList(0, i);
+    		String openTime = new SimpleDateFormat("dd/MM HH:mm").format(new Date(history.get(i).getOpenTime()));
+    		
+        	Double promedioClose = getPromedioUltimasVelas(subListClose, 120);
+        	Double promedioOpen = getPromedioUltimasVelas(subListOpen, 120);
+        	Double promedioHigh = getPromedioUltimasVelas(subListHigh, 120);
+        	Double promedioLow = getPromedioUltimasVelas(subListLow, 120);
+        	Double promedioTotal = (promedioClose + promedioOpen + promedioHigh + promedioLow) / 4;
+        	
+			Double ultimaVela = closePrices.get(subListClose.size());
+			Double porcentajeIncremento = ((ultimaVela-promedioTotal)/promedioTotal)*100;
+			
+			System.out.println(this.pair+" "+porcentajeIncremento.doubleValue() + " " + String.format("%.12f", ultimaVela) + " " + openTime  );
+			
+			
+	    	if(porcentajeIncremento <= -999 || tradeActivo) {
+	    		tradeActivo = true;
+	    		if(null == precioCompra) precioCompra = ultimaVela;
+	    		if(null == openTimeCompra) openTimeCompra = openTime;
+
+	    		List<Candlestick> velasUnMinuto = CurrentAPI.get().getCandlestickBars(this.pair, CandlestickInterval.ONE_MINUTE, 1000, history.get(i).getOpenTime(), history.get(i).getCloseTime());
+	    		
+	    		for (Candlestick minuto : velasUnMinuto) {
+	    			Double openUnMinuto = Double.parseDouble(minuto.getOpen());
+	    			Double closeUnMinuto = Double.parseDouble(minuto.getClose());
+	    			Double lowUnMinuto = Double.parseDouble(minuto.getLow());
+	    			Double highUnMinuto = Double.parseDouble(minuto.getHigh());
+	    			
+	    			Double porcentajeOpen= ((openUnMinuto-precioCompra)/precioCompra)*100;
+	    			Double porcentajeClose= ((closeUnMinuto-precioCompra)/precioCompra)*100;
+	    			Double porcentajeLow= ((lowUnMinuto-precioCompra)/precioCompra)*100;
+	    			Double porcentajeHigh= ((highUnMinuto-precioCompra)/precioCompra)*100;
+	    			
+	    			Double porcentajeGanacia = 5D;
+	    			Double porcentajePerdida = -15D;
+	    			
+	    			boolean porcentajeOpenGanacia = porcentajeOpen >= porcentajeGanacia;
+	    			boolean porcentajeCloseGanacia = porcentajeClose >= porcentajeGanacia;
+	    			boolean porcentajeLowGanacia = porcentajeLow >= porcentajeGanacia;
+	    			boolean porcentajeHighGanacia = porcentajeHigh >= porcentajeGanacia;
+	    			
+	    			boolean porcentajeOpenPerdida = porcentajeOpen <= porcentajePerdida;
+	    			boolean porcentajeClosePerdida = porcentajeClose <= porcentajePerdida;
+	    			boolean porcentajeLowPerdida = porcentajeLow <= porcentajePerdida;
+	    			boolean porcentajeHighPerdida = porcentajeHigh <= porcentajePerdida;
+	    			
+	        		String openTimeUnMinuto = new SimpleDateFormat("dd/MM HH:mm:ss").format(new Date(minuto.getOpenTime()));
+	        		String closeTimeUnMinuto = new SimpleDateFormat("dd/MM HH:mm:ss").format(new Date(minuto.getCloseTime()));
+	        		
+	        		
+	    			if(porcentajeOpenPerdida) {
+	    				 System.out.println(this.pair+" Open Perdió: "+ porcentajeOpen + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				 tradeActivo = false;
+	    				 precioCompra = null;
+	    				 openTimeCompra = null;
+	    				 porcentajeGlobal += porcentajeOpen;
+	    				 break;
+	    			}
+	    			if(porcentajeClosePerdida) {
+	    				System.out.println(this.pair+" Close Perdió: "+ porcentajeClose + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeClose;
+	    				break;
+	    			} 
+	    			if(porcentajeLowPerdida) {
+	    				System.out.println(this.pair+" Low Perdió: "+ porcentajeLow + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeLow;
+	    				break;
+	    			} 
+	    			if(porcentajeHighPerdida) {
+	    				System.out.println(this.pair+" High Perdió: "+ porcentajeHigh + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeHigh;
+	    				break;
+	    			} 
+	    			
+	    			if(porcentajeOpenGanacia) {
+	    				System.out.println(this.pair+" Open Ganó: "+ porcentajeOpen + "% Desde el: " + openTimeCompra + " Hasta el: "+closeTimeUnMinuto );
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeOpen;
+	    				break;
+	    			}
+	    			if(porcentajeCloseGanacia) {
+	    				System.out.println(this.pair+" Close Ganó: "+ porcentajeClose+ "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeClose;
+	    				break;
+	    			} 
+	    			if(porcentajeLowGanacia) {
+	    				System.out.println(this.pair+" Low Ganó: "+ porcentajeLow + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeLow;
+	    				break;
+	    			} 
+	    			if(porcentajeHighGanacia) {
+	    				System.out.println(this.pair+" High Ganó: "+ porcentajeHigh + "% Desde el " + openTimeCompra+ " Hasta el: "+closeTimeUnMinuto);
+	    				tradeActivo = false;
+	    				precioCompra = null;
+	    				openTimeCompra = null;
+	    				porcentajeGlobal += porcentajeHigh;
+	    				break;
+	    			} 
+	    			
+				}
+
+	    	}
+			
+		}
+    	
+    	System.out.println("PORCENTAJE GLOBAL: "+ porcentajeGlobal);
+    	
+    }
+    
+    
+    private boolean esVolatil(List<Candlestick> history) {
+    	List<Double> porcentajesIncremento = getPorcentajesIncremento(history);
+    	List<Integer> porcentajeEnteros = porcentajesIncremento.stream().map(p ->  p.intValue()).collect(Collectors.toList());
+    	
+    	boolean esVolatil = false;
+    	esVolatil = esVolatil || porcentajeEnteros.contains(7);
+    	esVolatil = esVolatil || porcentajeEnteros.contains(8);
+    	esVolatil = esVolatil || porcentajeEnteros.contains(9);
+    	esVolatil = esVolatil || porcentajeEnteros.contains(10);
+    	esVolatil = esVolatil || porcentajeEnteros.contains(11);
+    	esVolatil = esVolatil || porcentajeEnteros.contains(12);
+    	
+    	return esVolatil;
+    	
+    }
+    
+    
+    private Double getTakeProfit(List<Candlestick> history) {
+    	List<Double> closePrices = history.stream().map(candle -> Double.valueOf(candle.getClose())).collect(Collectors.toList());
+    	List<Double> openPrices = history.stream().map(candle -> Double.valueOf(candle.getOpen())).collect(Collectors.toList());
+    	List<Double> highPrices = history.stream().map(candle -> Double.valueOf(candle.getHigh())).collect(Collectors.toList());
+    	List<Double> lowPrices = history.stream().map(candle -> Double.valueOf(candle.getLow())).collect(Collectors.toList());
+    	
+    	
+    	Double promedioClose = getPromedioUltimasVelas(closePrices, 120);
+    	Double promedioOpen = getPromedioUltimasVelas(openPrices, 120);
+    	Double promedioHigh = getPromedioUltimasVelas(highPrices, 120);
+    	Double promedioLow = getPromedioUltimasVelas(lowPrices, 120);
+    	Double promedioTotal = (promedioClose + promedioOpen + promedioHigh + promedioLow) / 4;
+    	
+    	Double ultimaVela = closePrices.get(closePrices.size() - 1);
+    	
+    	Double porcentajeIncremento = ((ultimaVela-promedioTotal)/promedioTotal)*100;
+    	
+    	if(porcentajeIncremento.intValue() == -2) {
+    		return 0.02d;
+    	} else if(porcentajeIncremento <= -10) {
+    		return 0.09d;
+    	} else {
+    		return 0.02d;
+    	}
+    	
+    }
+    
+    
+    
+    private List<Double> getPorcentajesIncremento(List<Candlestick> history) {
+    	List<Double> closePrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
+    	List<Double> openPrices = history.stream().map(candle -> Double.parseDouble(candle.getOpen())).collect(Collectors.toList());
+    	List<Double> highPrices = history.stream().map(candle -> Double.parseDouble(candle.getHigh())).collect(Collectors.toList());
+    	List<Double> lowPrices = history.stream().map(candle -> Double.parseDouble(candle.getLow())).collect(Collectors.toList());
+    	
+    	List<Double> porcentajes = new ArrayList<Double>();
+    	for (int i = 10; i < history.size(); i++) {
+    		List<Double> subListClose = closePrices.subList(0, i);
+    		List<Double> subListOpen = openPrices.subList(0, i);
+    		List<Double> subListHigh = highPrices.subList(0, i);
+    		List<Double> subListLow = lowPrices.subList(0, i);
+    		
+        	Double promedioClose = getPromedioUltimasVelas(subListClose, 10);
+        	Double promedioOpen = getPromedioUltimasVelas(subListOpen, 10);
+        	Double promedioHigh = getPromedioUltimasVelas(subListHigh, 10);
+        	Double promedioLow = getPromedioUltimasVelas(subListLow, 10);
+        	Double promedioTotal = (promedioClose + promedioOpen + promedioHigh + promedioLow) / 4;
+        	
+			Double ultimaVela = closePrices.get(subListClose.size()-1 );
+			Double porcentajeIncremento = ((ultimaVela-promedioTotal)/promedioTotal)*100;
+			porcentajes.add(porcentajeIncremento);
+    	}
+    	return porcentajes;
+    }
+    
+    
+    
+    
+    private boolean esAptaParaComprar(List<Candlestick> history) {
+    	
+    	if(!esVolatil(history)) return false;
+    	
+    	List<Double> closePrices = history.stream().map(candle -> Double.valueOf(candle.getClose())).collect(Collectors.toList());
+    	List<Double> openPrices = history.stream().map(candle -> Double.valueOf(candle.getOpen())).collect(Collectors.toList());
+    	List<Double> highPrices = history.stream().map(candle -> Double.valueOf(candle.getHigh())).collect(Collectors.toList());
+    	List<Double> lowPrices = history.stream().map(candle -> Double.valueOf(candle.getLow())).collect(Collectors.toList());
+    	
+    	
+    	Double promedioClose = getPromedioUltimasVelas(closePrices, 120);
+    	Double promedioOpen = getPromedioUltimasVelas(openPrices, 120);
+    	Double promedioHigh = getPromedioUltimasVelas(highPrices, 120);
+    	Double promedioLow = getPromedioUltimasVelas(lowPrices, 120);
+    	Double promedioTotal = (promedioClose + promedioOpen + promedioHigh + promedioLow) / 4;
+    	
+    	Double ultimaVela = closePrices.get(closePrices.size() - 1);
+    	
+    	Double porcentajeIncremento = ((ultimaVela-promedioTotal)/promedioTotal)*100;
+    	
+    	
+    	//obtener el precio promedio de la moneda a 2 meses atras
+    	//si el precio promedio a 2 meses supera cierto porcentaje con respecto al precio actual es apta para comprar
+    	//Comprar y aplicar que venda cuando el porcentaje < (porcentaje - porcentaje / 3)
+    	//Una vez que venda y realice un soporte en determinado precio, la moneda debe escanear obteniendo el promedio desde 
+    	//la fecha de compra que hizo el quiebre al alza hasta el precio actual
+    	//para evitar que vuelva a comprar dentro del soporte sin que haya subido.
+    	
+    	
+    	if(porcentajeIncremento.intValue() == -2) {
+    		return true;
+    	}else{
+    		return false;
+    	}
+    	
+    	
+    }
+    
+    
+    private Double getPromedioUltimasVelas(List<Double> history, int cantVelas) {
+    	Double promedio = 0d;
+    	
+    	int countDown = 0;
+    	int count = 0;
+    	
+    	if(history.size() <= cantVelas) {
+    		count = history.size();
+    		countDown = history.size()-1;
+    	} else {
+    		count = cantVelas;
+    		countDown = history.size()-2;
+    	}
+    		
+    	if(history.size() > 1) {
+    		for (int i = count; i > 0; i--) {
+        		promedio += history.get(countDown--);
+    		}
+    	} else {
+    		promedio = history.get(0);
+    	}
+    	promedio = promedio / count;
+    	return promedio;
     }
     
     
@@ -82,6 +448,8 @@ public class Currency implements Closeable {
     public void dispararThreadActualizador(String moneda) {
         BinanceApiWebSocketClient client = CurrentAPI.getFactory().newWebSocketClient();
         //We add a websocket listener that automatically updates our values and triggers our strategy or trade logic as needed
+        
+        CacheClient.getMonedas().add(moneda);
         closeable = client.onAggTradeEvent(moneda, new BinanceApiCallback<AggTradeEvent>() {
             @Override
             public void onResponse(final AggTradeEvent response) {
@@ -96,9 +464,6 @@ public class Currency implements Closeable {
             	                String.format("%.9f", currentPrice),
             	                activeTrade.getOpenTime());
                     }
-
-                    
-                    
 
                     //We want to toss messages that provide no new information
                     if (currentPrice == newPrice && newTime <= candleTime) {
@@ -155,7 +520,7 @@ public class Currency implements Closeable {
 
     private void accept(PriceBean bean) {
     	try {
-    		if(!ThreadLocker.isBlocked() && !Live.isInitializing()) {
+    		if(!ThreadLocker.isBlocked()) {
     	        //Make sure we dont get concurrency issues
     	        if (currentlyCalculating.get()) {
     	            System.out.println("------------WARNING, NEW THREAD STARTED ON " + pair + " MESSAGE DURING UNFINISHED PREVIOUS MESSAGE CALCULATIONS");
@@ -175,14 +540,19 @@ public class Currency implements Closeable {
     	            int confluence = 0; //0 Confluence should be reserved in the config for doing nothing
     	            currentlyCalculating.set(true);
     	            //We can disable the strategy and trading logic to only check indicator and price accuracy
-    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds(pair)) {
-    	                confluence = check();
-    	            }
+//    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds(pair)) {
+//    	                confluence = check();
+//    	            }
     	            if (hasActiveTrade()) { //We only allow one active trade per currency, this means we only need to do one of the following:
     	                activeTrade.update(currentPrice, confluence);//Update the active trade stop-loss and high values
-    	            } else if ( (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair))  || (ConfigSetup.COMPRA_DE_CUALQUIER_MANERA && BuySell.enoughFunds(pair)) ) {
-    	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
-    	            }
+    	            } 
+    	            
+//    	            else if ( (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair))  || (ConfigSetup.COMPRA_DE_CUALQUIER_MANERA && BuySell.enoughFunds(pair)) ) {
+//    	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
+//    	            } else if(esAptaParaComprar) {
+//    	            	esAptaParaComprar = false;
+//    	            	BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
+//    	            }
     	            currentlyCalculating.set(false);
     	        }
     		}
@@ -231,6 +601,7 @@ public class Currency implements Closeable {
 
     public void setActiveTrade(Trade activeTrade) {
         this.activeTrade = activeTrade;
+        
     }
 
     public Trade getActiveTrade() {
@@ -335,8 +706,6 @@ public class Currency implements Closeable {
 	public void setLocalAccount(LocalAccount localAccount) {
 		this.localAccount = localAccount;
 	}
-	
-	
-    
+
     
 }
