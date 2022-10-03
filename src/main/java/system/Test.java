@@ -9,6 +9,8 @@ import java.util.Date;
 
 import org.json.JSONObject;
 
+import com.binance.api.client.domain.market.CandlestickInterval;
+
 import dbconnection.JDBCPostgres;
 import utils.TradeBotUtil;
 
@@ -18,11 +20,17 @@ public class Test {
 		
 		
 		
+		
+		CandlestickInterval a = CandlestickInterval.valueOf("FOUR_HOURLY");
+		
+		System.out.println(a);
+		
+		
 //		System.out.println(String.format("%.7f", 0.00050499));
 		
-		ConfigSetup.USER_DATABASE = "postgres";
-		ConfigSetup.PASS_DATABASE = "postgres";
-		System.out.println(getSiguienteMontoByMoneda("MIRBUSD"));
+//		ConfigSetup.USER_DATABASE = "postgres";
+//		ConfigSetup.PASS_DATABASE = "postgres";
+//		System.out.println(getSiguienteMontoByMoneda("MIRBUSD"));
 //		
 //		
 //		JDBCPostgres.update("insert into monedamonto(moneda, monto) values(?,?)", "ETHBUSD", String.format("%.7f", 127.3) );

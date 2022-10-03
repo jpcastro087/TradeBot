@@ -32,6 +32,9 @@ public class ConfigSetup {
     private static Double PORCENTAJE_HASTA;
     public static boolean COMPRA_DE_CUALQUIER_MANERA;
     public static boolean ESCANER_CURRENCY_TO_TRACK;
+    public static String UNIDAD_TIEMPO;
+    public static Integer CANTIDAD_PERIODOS;
+    public static Double PORCENTAJE_MARGEN_MINIMO;
     private static List<String> currenciesNotTrack;
 	private static List<String> currencies;
 
@@ -224,9 +227,20 @@ public class ConfigSetup {
 				case "escanear del listado currencies to track":
 					ESCANER_CURRENCY_TO_TRACK = Boolean.valueOf(arr[1]);
 					break;
+					
+				case "sumar porcentaje margen minimo esperado":
+					PORCENTAJE_MARGEN_MINIMO = Double.valueOf(arr[1]);
+					break;
+				case "unidad de tiempo":
+					UNIDAD_TIEMPO = String.valueOf(arr[1]);
+					break;
+				case "cantidad periodos":
+					CANTIDAD_PERIODOS = Integer.valueOf(arr[1]);
+					break;
 				case "Currencies to not track":
 					currenciesNotTrack = Collections.unmodifiableList(Arrays.asList(arr[1].toUpperCase().split(", ")));
 					break;
+					
 				default:
 					items--;
 					break;

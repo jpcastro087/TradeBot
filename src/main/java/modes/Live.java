@@ -66,7 +66,7 @@ public final class Live {
         }
     }
 
-    public static void init(String... monedasParam) {
+    public static void init(String... monedasParam) throws InterruptedException {
     	initializing = true;
         boolean fileFailed = true;
         if (credentialsFile.exists()) {
@@ -271,6 +271,8 @@ public final class Live {
                 System.out.println(e.getMessage());
             }
             initializing = false;
+            
+            Thread.sleep(2000);
             
         }
         

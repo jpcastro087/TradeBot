@@ -11,9 +11,11 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -35,6 +37,7 @@ import modes.Live;
 import system.ConfigSetup;
 import system.Formatter;
 import system.Mode;
+import utils.CollectionUtil;
 
 public class Currency implements Closeable {
     public static int CONFLUENCE_TARGET;
@@ -61,12 +64,14 @@ public class Currency implements Closeable {
     private boolean esAptaParaComprar;
 
     //Used for SIMULATION and LIVE
-    public Currency(String coin) throws ParseException {
+    public Currency(String coin) throws Exception {
         this.pair = coin + ConfigSetup.getFiat();
         this.coin = coin;
 
         //Every currency needs to contain and update our indicators
-        List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.ONE_MINUTE);
+        List<Candlestick> history = getHistoryPeriodosAtras(pair, CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
+        
+        if(CollectionUtil.isNullOrEmpty(history))return;
         
         List<String> monedasActivas = ConfigSetup.getMonedasActivas();
 //        if(!esVolatil(history) && !monedasActivas.contains(coin)) return;
@@ -82,15 +87,7 @@ public class Currency implements Closeable {
         currentPrice = Double.parseDouble(history.get(history.size()-1).getClose());
         
         
-        
-        if(history.size() <= 7) {
-        	this.esAptaParaComprar = true;
-        }
-        
-        
-//        esAptaParaComprar = esAptaParaComprar(history);
-//        imprimirPorcentajes(history);
-//        imprimirPorcentajesSemanales();
+        changeEsAptaParaComprar(history);
         
 
         Set<String> monedasEnScanner = CacheClient.getMonedas();
@@ -117,39 +114,197 @@ public class Currency implements Closeable {
     
     
     
-    private void imprimirPorcentajesSemanales() throws ParseException {
-    	
-    	
-    	
+    
+    private List<Candlestick> getHistoryPeriodosAtras(String par, CandlestickInterval intervalo, Integer cantidadPeriodos) throws Exception{
+
     	Calendar cal = Calendar.getInstance();
     	cal.setTime(new Date());
-    	cal.add(Calendar.DATE, -1000);
-    	Date dateBefore1000Days = cal.getTime();
     	
-    	long fechaDesde =  dateBefore1000Days.getTime();
-    	long fechaHasta =  new Date().getTime();
-    	
-    	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(pair, CandlestickInterval.DAILY, 1000, fechaDesde, fechaHasta);
-    	
-    	int diasAtras = 90;
-    	
-    	
-    	if(history.size() < diasAtras) {
-    		diasAtras = history.size();
-    	}
-    	
-    	
-    	List<Candlestick> historyTresMesesAtras = history.subList(history.size()-diasAtras, history.size());
-    	double primerCierre = Double.valueOf(historyTresMesesAtras.get(0).getClose());
-    	
-    	
-    	for (Candlestick candlestick : historyTresMesesAtras) {
-    		double currentClose = Double.valueOf(candlestick.getClose());
-    		Double porcentajeIncremento = ((currentClose-primerCierre)/primerCierre)*100;
-    		String closeTime = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(candlestick.getOpenTime()));
-			System.out.println(closeTime + " "+ candlestick.getClose() + " " + porcentajeIncremento + "%");
+    	switch (intervalo) {
+		case ONE_MINUTE:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos);
+			break;
+		case FIVE_MINUTES:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 5 );
+			break;
+		case FIFTEEN_MINUTES:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 15);
+			break;
+		case HOURLY:
+	    	cal.add(Calendar.HOUR, -cantidadPeriodos);
+			break;
+		case FOUR_HOURLY:
+	    	cal.add(Calendar.HOUR, -cantidadPeriodos * 4);
+			break;
+		case DAILY:
+	    	cal.add(Calendar.DATE, -cantidadPeriodos);
+			break;
+		default:
+			throw new Exception("No existe el periodo, cargalo y no rompas las bolas");
 		}
     	
+    	Date dateBefore1000Periodos = cal.getTime();
+    	long fechaDesde =  dateBefore1000Periodos.getTime();
+    	long fechaHasta =  new Date().getTime();
+    	
+    	
+    	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(par, intervalo, cantidadPeriodos, fechaDesde, fechaHasta);
+    	return history;
+    	
+    }
+    
+    
+    private void changeEsAptaParaComprar(List<Candlestick> history) throws ParseException {
+    	
+    	List<Double> minimos = new ArrayList<Double>();
+    	List<Double> todosLosMinimos = new ArrayList<Double>();
+		for (int i = 0; i < history.size(); i++) {
+			Candlestick candlestick = history.get(i);
+			String closePriceBaja = candlestick.getClose();
+			Double closePriceBajaDouble = Double.valueOf(closePriceBaja);
+			Candlestick candlestickAlza = getCandlestickInmediatamenteEnAlza(candlestick, history, Trade.TAKE_PROFIT * 100);
+			
+			if(null != candlestickAlza) {
+				minimos.add(closePriceBajaDouble);
+			}
+			todosLosMinimos.add(closePriceBajaDouble);
+			
+		}
+    	
+		if(!CollectionUtil.isNullOrEmpty(minimos)) {
+			
+		    Double min = todosLosMinimos
+		    	      .stream()
+		    	      .mapToDouble(v -> v)
+		    	      .min().orElseThrow(NoSuchElementException::new);
+		    
+		    Double minEsperado = (min + (min * ConfigSetup.PORCENTAJE_MARGEN_MINIMO));
+		    Double porcentajeABajarEsperado = ((currentPrice - minEsperado) / minEsperado) * 100;
+		    
+		    if(porcentajeABajarEsperado < 0) {
+		    	porcentajeABajarEsperado = 0d;
+		    }
+		    
+		    Double velaAnterior = Double.valueOf(history.get(history.size()-2).getClose());
+		    Double porcentajePrecioActualContraVelaAnterior = ((velaAnterior - currentPrice) / currentPrice) * 100;
+		    
+			
+			System.out.println(this.pair + " Mejor precio compra: "+ String.format("%.12f", minEsperado) + " Actual: " + String.format("%.12f", currentPrice) + " Tiene que bajar a un "+ String.format("%.2f", porcentajeABajarEsperado)  + "% Porcentaje Contra Vela Anterior " + String.format("%.2f", porcentajePrecioActualContraVelaAnterior));
+			
+			if(currentPrice <= minEsperado) {
+				System.out.println("TE COMPRÓ");
+				this.esAptaParaComprar = true;
+			}
+			
+			
+		}
+		
+    	
+    	
+    	
+    }
+    
+    
+    
+    
+    private Candlestick getCandlestickInmediatamenteEnAlza(Candlestick candlestick, List<Candlestick> history, Double porcentajeSubida) {
+    	Candlestick result = null;
+    	Integer index = history.indexOf(candlestick);
+    	
+    	for(int i = index; i < history.size()-1; i++) {
+    		Candlestick current = history.get(i);
+    		Long closeTimeParam = candlestick.getCloseTime();
+    		Long closeTimeCurrent = current.getCloseTime();
+    		Double closePriceParam = Double.valueOf(candlestick.getClose());
+    		Double closePriceCurrent = Double.valueOf(current.getClose());
+    		if(closeTimeCurrent > closeTimeParam && closePriceCurrent > closePriceParam){
+    			Double closePriceParamDouble = Double.valueOf(closePriceParam);
+				Double closePriceCurrentDouble = Double.valueOf(closePriceCurrent);
+				Double porcentajeDouble = ((closePriceCurrentDouble - closePriceParamDouble) / closePriceParamDouble) * 100;
+    			if(porcentajeDouble > porcentajeSubida && i > 32) {
+        			result = current;
+        			break;
+    			}
+    		}
+    	}
+    	return result;
+    }
+    
+    
+    
+    
+    
+    private List<Candlestick> getMinimos(List<Candlestick> history, Integer cantidadPeriodos, Integer limit){
+    	
+    	List<Candlestick> historyCopy = new ArrayList<Candlestick>(history);
+    	
+    	if(historyCopy.size() <= cantidadPeriodos) {
+    		cantidadPeriodos = historyCopy.size()-1;
+    	}
+    	
+    	Collections.sort(historyCopy,Comparator.comparing(Candlestick::getCloseTime));
+    	
+    	List<Candlestick> subHistory = historyCopy.subList(historyCopy.size() - cantidadPeriodos, historyCopy.size()-1);
+    	
+
+    	
+    	Comparator<Candlestick> closeComparator = new Comparator<Candlestick>() {
+			@Override
+			public int compare(Candlestick o1, Candlestick o2) {
+				return Double.compare( Double.valueOf(o2.getClose()), Double.valueOf(o1.getClose()));
+			}
+		};
+    	
+		Collections.sort(subHistory, closeComparator);
+		
+		List<Candlestick> subHistoryLimit = subHistory.subList(subHistory.size() - limit, subHistory.size()-1);
+		
+      return subHistoryLimit;
+    }
+    
+    private List<Candlestick> getMaximos(List<Candlestick> history, Integer cantidadPeriodos, Integer limit){
+    	
+    	List<Candlestick> historyCopy = new ArrayList<Candlestick>(history);
+    	
+    	if(historyCopy.size() <= cantidadPeriodos) {
+    		cantidadPeriodos = historyCopy.size()-1;
+    	}
+    	
+    	Collections.sort(historyCopy,Comparator.comparing(Candlestick::getCloseTime));
+    	
+    	List<Candlestick> subHistory = historyCopy.subList(historyCopy.size() - cantidadPeriodos, history.size()-1);
+    	
+    	Comparator<Candlestick> closeComparator = new Comparator<Candlestick>() {
+			@Override
+			public int compare(Candlestick o1, Candlestick o2) {
+				return Double.compare( Double.valueOf(o1.getClose()), Double.valueOf(o2.getClose()));
+			}
+		};
+    	
+		Collections.sort(subHistory, closeComparator);
+		
+		List<Candlestick> subHistoryLimit = subHistory.subList(subHistory.size() - limit, subHistory.size()-1);
+		
+      return subHistoryLimit;
+    }
+    
+    
+    
+    
+    private double getMin(List<Candlestick> history) {
+        double min = history
+        	      .stream()
+        	      .mapToDouble(v -> Double.valueOf(v.getClose()))
+        	      .min().orElseThrow(NoSuchElementException::new);
+        return min;
+    }
+    
+    private double getMax(List<Candlestick> history) {
+    	double max = history
+        	      .stream()
+        	      .mapToDouble(v -> Double.valueOf(v.getClose()))
+        	      .max().orElseThrow(NoSuchElementException::new);
+    	return max;
     }
     
     

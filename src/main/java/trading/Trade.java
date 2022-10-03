@@ -131,11 +131,11 @@ public class Trade {
 		if (Double.valueOf(TRAILING_SL).doubleValue() == 99.99D)
 			return;
 		
-		if (newPrice < this.high * (1.0D - getHighProfit() / 1.5D) && getProfit() * 100.0D > 5) {
-			this.explanation = String.valueOf(this.explanation) + "Closed due to: Trailing SL";
-			BuySell.close(this);
-			return;
-		}
+//		if (newPrice < this.high * (1.0D - getHighProfit() / 3D) && getProfit() > 2) {
+//			this.explanation = String.valueOf(this.explanation) + "Closed due to: Trailing SL";
+//			BuySell.close(this);
+//			return;
+//		}
 		
 		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Indicator confluence of "

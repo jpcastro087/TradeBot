@@ -25,7 +25,7 @@ public class Main {
 	
 	
 
-	public static void main(String[] args) throws IOException, InterruptedException, ParseException {
+	public static void main(String[] args) throws Exception {
 		System.out.println("---Startup...");
 		// Program config.
 		try {

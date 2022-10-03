@@ -38,7 +38,7 @@ public final class Simulation {
         }
     }
 
-    public static void init() throws ParseException {
+    public static void init() throws Exception {
         localAccount = new LocalAccount("Investor Toomas", STARTING_VALUE);
         BuySell.setAccount(localAccount);
 
