@@ -1,9 +1,13 @@
 package trading;
 
+import java.awt.Button;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -19,6 +23,8 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import org.json.JSONObject;
 
 import com.binance.api.client.BinanceApiCallback;
 import com.binance.api.client.BinanceApiWebSocketClient;
@@ -38,6 +44,7 @@ import system.ConfigSetup;
 import system.Formatter;
 import system.Mode;
 import utils.CollectionUtil;
+import utils.TradeBotUtil;
 
 public class Currency implements Closeable {
     public static int CONFLUENCE_TARGET;
@@ -77,9 +84,9 @@ public class Currency implements Closeable {
 //        if(!esVolatil(history) && !monedasActivas.contains(coin)) return;
         
         List<Double> closingPrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
-        indicators.add(new RSI(closingPrices, 1));
-        indicators.add(new MACD(closingPrices, 1, 1, 1));
-        indicators.add(new DBB(closingPrices, 1));
+        indicators.add(new RSI(closingPrices, 0));
+        indicators.add(new MACD(closingPrices, 0, 0, 0));
+        indicators.add(new DBB(closingPrices, 0));
 
         //We set the initial values to check against in onMessage based on the latest candle in history
         currentTime = System.currentTimeMillis();
@@ -89,20 +96,63 @@ public class Currency implements Closeable {
         
         changeEsAptaParaComprar(history);
         
-
-        Set<String> monedasEnScanner = CacheClient.getMonedas();
-        
         if(esAptaParaComprar || monedasActivas.contains(coin) ) {
-        	if(!monedasEnScanner.contains(pair.toLowerCase())) {
-            	dispararThreadActualizador(pair.toLowerCase());
-            	if(!monedasActivas.contains(coin)) {
-            		System.out.println(coin+ " ES APTA PARA COMPRAR");
-            		BuySell.open(this, "ES APTA PARA COMPRAR");
-            	}
+        	actualizarPisos(pair);
+        	if(!monedasActivas.contains(coin)) {
+        		System.out.println(coin+ "Inicio Compra en Constructor Currency(String coin)");
+        		JSONObject infoPiso = ConfigSetup.getInfoPiso(1l, pair);
+        		Double porcentaje = infoPiso.getDouble("porcentajeDinero");
+        		BuySell.open(this, porcentaje, 1l, "ES APTA PARA COMPRAR");
+        		System.out.println(coin+ "Fin Compra en Constructor Venta en Currency(String coin)");
         	}
         }
         
 //        System.out.println("---	j	SETUP DONE FOR " + this);
+    }
+    
+    
+    
+    
+    
+    private void actualizarPisos(String pair) throws Exception {
+    	
+    	
+    	
+        JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?", String.format("%.9f", currentPrice), pair);
+    	
+    	
+    	List<Trade> trades = getTradesByPair(pair);
+        
+        for (Trade trade : trades) {
+        	
+        	JSONObject infoPiso = ConfigSetup.getInfoPiso(trade.getPiso(), pair);
+        	trade.setTakeProfit(infoPiso.getDouble("takeProfit"));
+        	trade.update(currentPrice);//Update the active trade stop-loss and high values
+
+        	
+        	Trade tradeUltimoPiso = getTradeUltimoPisoByPair(pair);
+        	if(null != tradeUltimoPiso) {
+            	double entryPriceUltimoPiso = tradeUltimoPiso.getEntryPrice();
+            	double porcentajeContraUltimoPiso = (currentPrice - entryPriceUltimoPiso) / entryPriceUltimoPiso;
+            	DecimalFormat df = new DecimalFormat("#.###");
+            	df.setRoundingMode(RoundingMode.CEILING);
+            	porcentajeContraUltimoPiso = Double.valueOf(df.format(porcentajeContraUltimoPiso));
+            	
+            	
+            	JSONObject nextInfoPiso = ConfigSetup.getInfoPiso(tradeUltimoPiso.getPiso() + 1, pair);
+            	
+            	if(null != nextInfoPiso) {
+	            	Double porcentajeBajada = nextInfoPiso.getDouble("porcentajeBajada");
+	            	Double porcentajeDinero = nextInfoPiso.getDouble("porcentajeDinero");
+	            	
+	            	if(porcentajeContraUltimoPiso <= porcentajeBajada ) {
+	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso");
+	            	}
+            	}
+        	}
+
+        	
+		}
     }
     
     
@@ -154,48 +204,52 @@ public class Currency implements Closeable {
     }
     
     
-    private void changeEsAptaParaComprar(List<Candlestick> history) throws ParseException {
+    private void changeEsAptaParaComprar(List<Candlestick> history) throws Exception {
     	
-    	List<Double> minimos = new ArrayList<Double>();
-    	List<Double> todosLosMinimos = new ArrayList<Double>();
-		for (int i = 0; i < history.size(); i++) {
-			Candlestick candlestick = history.get(i);
-			String closePriceBaja = candlestick.getClose();
-			Double closePriceBajaDouble = Double.valueOf(closePriceBaja);
-			Candlestick candlestickAlza = getCandlestickInmediatamenteEnAlza(candlestick, history, Trade.TAKE_PROFIT * 100);
-			
-			if(null != candlestickAlza) {
-				minimos.add(closePriceBajaDouble);
-			}
-			todosLosMinimos.add(closePriceBajaDouble);
-			
-		}
+    	List<Double> minimos = getMinimos(history);
+		
     	
 		if(!CollectionUtil.isNullOrEmpty(minimos)) {
 			
-		    Double min = todosLosMinimos
-		    	      .stream()
-		    	      .mapToDouble(v -> v)
-		    	      .min().orElseThrow(NoSuchElementException::new);
+		    Double min = getPromedio(minimos);
 		    
-		    Double minEsperado = (min + (min * ConfigSetup.PORCENTAJE_MARGEN_MINIMO));
+		    JSONObject infoPiso = ConfigSetup.getInfoPiso(1l, pair);
+		    
+		    Double margenMinimo = infoPiso.getDouble("margen");
+		    
+		    Double minEsperado = (min + (min * margenMinimo));
 		    Double porcentajeABajarEsperado = ((currentPrice - minEsperado) / minEsperado) * 100;
 		    
 		    if(porcentajeABajarEsperado < 0) {
 		    	porcentajeABajarEsperado = 0d;
 		    }
 		    
-		    Double velaAnterior = Double.valueOf(history.get(history.size()-2).getClose());
-		    Double porcentajePrecioActualContraVelaAnterior = ((velaAnterior - currentPrice) / currentPrice) * 100;
+		    String trackeo = this.pair +" Tiene que bajar a un "+ String.format("%.2f", porcentajeABajarEsperado);
 		    
+			List<Trade> trades = getTradesByPair(pair);
 			
-			System.out.println(this.pair + " Mejor precio compra: "+ String.format("%.12f", minEsperado) + " Actual: " + String.format("%.12f", currentPrice) + " Tiene que bajar a un "+ String.format("%.2f", porcentajeABajarEsperado)  + "% Porcentaje Contra Vela Anterior " + String.format("%.2f", porcentajePrecioActualContraVelaAnterior));
-			
-			if(currentPrice <= minEsperado) {
-				System.out.println("TE COMPRÓ");
-				this.esAptaParaComprar = true;
+			if(!CollectionUtil.isNullOrEmpty(trades)) {
+				for (Trade trade : trades) {
+					Double entryPrice = trade.getEntryPrice();
+					Long piso = trade.getPiso();
+					Double porcentajePiso = ((currentPrice - entryPrice) / entryPrice) * 100;
+					
+					if(porcentajePiso < 0) {
+						trackeo += " - Piso "+ piso + " "+ String.format("%.2f", porcentajePiso)  +"%";
+					} else {
+						trackeo += " - Piso "+ piso + " +"+ String.format("%.2f", porcentajePiso)  +"%";
+					}
+					
+					
+				}
 			}
 			
+			System.out.println( trackeo );
+			
+			
+			if(currentPrice <= minEsperado) {
+				this.esAptaParaComprar = true;
+			}
 			
 		}
 		
@@ -203,6 +257,11 @@ public class Currency implements Closeable {
     	
     	
     }
+    
+    
+    
+    
+
     
     
     
@@ -234,77 +293,43 @@ public class Currency implements Closeable {
     
     
     
-    private List<Candlestick> getMinimos(List<Candlestick> history, Integer cantidadPeriodos, Integer limit){
-    	
-    	List<Candlestick> historyCopy = new ArrayList<Candlestick>(history);
-    	
-    	if(historyCopy.size() <= cantidadPeriodos) {
-    		cantidadPeriodos = historyCopy.size()-1;
-    	}
-    	
-    	Collections.sort(historyCopy,Comparator.comparing(Candlestick::getCloseTime));
-    	
-    	List<Candlestick> subHistory = historyCopy.subList(historyCopy.size() - cantidadPeriodos, historyCopy.size()-1);
-    	
-
-    	
-    	Comparator<Candlestick> closeComparator = new Comparator<Candlestick>() {
-			@Override
-			public int compare(Candlestick o1, Candlestick o2) {
-				return Double.compare( Double.valueOf(o2.getClose()), Double.valueOf(o1.getClose()));
+    private List<Double> getMinimos(List<Candlestick> history) throws Exception{
+    	List<Double> minimos = new ArrayList<Double>();
+		for (int i = 0; i < history.size(); i++) {
+			Candlestick candlestick = history.get(i);
+			String closePriceBaja = candlestick.getClose();
+			Double closePriceBajaDouble = Double.valueOf(closePriceBaja);
+			JSONObject infoPisoJson = ConfigSetup.getInfoPiso(1l, pair);
+			Double takeProfit = infoPisoJson.getDouble("takeProfit");
+			Candlestick candlestickAlza = getCandlestickInmediatamenteEnAlza(candlestick, history, takeProfit * 100);
+			if(null != candlestickAlza) {
+				minimos.add(closePriceBajaDouble);
 			}
-		};
-    	
-		Collections.sort(subHistory, closeComparator);
-		
-		List<Candlestick> subHistoryLimit = subHistory.subList(subHistory.size() - limit, subHistory.size()-1);
-		
-      return subHistoryLimit;
-    }
-    
-    private List<Candlestick> getMaximos(List<Candlestick> history, Integer cantidadPeriodos, Integer limit){
-    	
-    	List<Candlestick> historyCopy = new ArrayList<Candlestick>(history);
-    	
-    	if(historyCopy.size() <= cantidadPeriodos) {
-    		cantidadPeriodos = historyCopy.size()-1;
-    	}
-    	
-    	Collections.sort(historyCopy,Comparator.comparing(Candlestick::getCloseTime));
-    	
-    	List<Candlestick> subHistory = historyCopy.subList(historyCopy.size() - cantidadPeriodos, history.size()-1);
-    	
-    	Comparator<Candlestick> closeComparator = new Comparator<Candlestick>() {
-			@Override
-			public int compare(Candlestick o1, Candlestick o2) {
-				return Double.compare( Double.valueOf(o1.getClose()), Double.valueOf(o2.getClose()));
-			}
-		};
-    	
-		Collections.sort(subHistory, closeComparator);
-		
-		List<Candlestick> subHistoryLimit = subHistory.subList(subHistory.size() - limit, subHistory.size()-1);
-		
-      return subHistoryLimit;
+		}
+    	return minimos;
     }
     
     
-    
-    
-    private double getMin(List<Candlestick> history) {
-        double min = history
-        	      .stream()
-        	      .mapToDouble(v -> Double.valueOf(v.getClose()))
-        	      .min().orElseThrow(NoSuchElementException::new);
-        return min;
+    private List<Double> getCloses(List<Candlestick> history) throws Exception{
+    	List<Double> closes = new ArrayList<Double>();
+		for (int i = 0; i < history.size(); i++) {
+			Candlestick candlestick = history.get(i);
+			String close = candlestick.getClose();
+			Double closeDouble = Double.valueOf(close);
+			closes.add(closeDouble);
+		}
+    	return closes;
     }
     
-    private double getMax(List<Candlestick> history) {
-    	double max = history
-        	      .stream()
-        	      .mapToDouble(v -> Double.valueOf(v.getClose()))
-        	      .max().orElseThrow(NoSuchElementException::new);
-    	return max;
+    
+    private Double getPromedio(List<Double> numeros) {
+    	Double suma = 0D;
+    	Double promedio = 0D;
+    	for (Double numero : numeros) {
+    		suma += numero;
+		}
+    	promedio = suma / numeros.size();
+    	return promedio;
     }
     
     
@@ -601,6 +626,7 @@ public class Currency implements Closeable {
     
     
     public void dispararThreadActualizador(String moneda) {
+    	
         BinanceApiWebSocketClient client = CurrentAPI.getFactory().newWebSocketClient();
         //We add a websocket listener that automatically updates our values and triggers our strategy or trade logic as needed
         
@@ -615,9 +641,9 @@ public class Currency implements Closeable {
                     long newTime = response.getEventTime();
                     
                     if(null != activeTrade) {
-            	        JDBCPostgres.update("update trade set currentprice = ? where opentime = ?",
+            	        JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?",
             	                String.format("%.9f", currentPrice),
-            	                activeTrade.getOpenTime());
+            	                Currency.this.pair);
                     }
 
                     //We want to toss messages that provide no new information
@@ -692,22 +718,37 @@ public class Currency implements Closeable {
     	        }
 
     	        if (!currentlyCalculating.get()) {
-    	            int confluence = 0; //0 Confluence should be reserved in the config for doing nothing
     	            currentlyCalculating.set(true);
-    	            //We can disable the strategy and trading logic to only check indicator and price accuracy
-//    	            if ((Trade.CLOSE_USE_CONFLUENCE && hasActiveTrade()) || BuySell.enoughFunds(pair)) {
-//    	                confluence = check();
-//    	            }
-    	            if (hasActiveTrade()) { //We only allow one active trade per currency, this means we only need to do one of the following:
-    	                activeTrade.update(currentPrice, confluence);//Update the active trade stop-loss and high values
-    	            } 
     	            
-//    	            else if ( (confluence >= CONFLUENCE_TARGET && BuySell.enoughFunds(pair))  || (ConfigSetup.COMPRA_DE_CUALQUIER_MANERA && BuySell.enoughFunds(pair)) ) {
-//    	                BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
-//    	            } else if(esAptaParaComprar) {
-//    	            	esAptaParaComprar = false;
-//    	            	BuySell.open(Currency.this, "Trade opened due to: " + getExplanations());
-//    	            }
+    	            List<Trade> trades = getTradesByPair(pair);
+    	            
+    	            for (Trade trade : trades) {
+    	            	
+    	            	JSONObject infoPiso = ConfigSetup.getInfoPiso(trade.getPiso(), pair);
+    	            	trade.setTakeProfit(infoPiso.getDouble("takeProfit"));
+    	            	trade.update(currentPrice);//Update the active trade stop-loss and high values
+
+    	            	
+    	            	Trade tradeUltimoPiso = getTradeUltimoPisoByPair(pair);
+    	            	if(null != tradeUltimoPiso) {
+        	            	double entryPriceUltimoPiso = tradeUltimoPiso.getEntryPrice();
+        	            	double porcentajeContraUltimoPiso = (currentPrice - entryPriceUltimoPiso) / entryPriceUltimoPiso;
+        	            	
+        	            	JSONObject nextInfoPiso = ConfigSetup.getInfoPiso(tradeUltimoPiso.getPiso() + 1, pair);
+        	            	
+        	            	if(null != nextInfoPiso) {
+            	            	Double porcentajeBajada = nextInfoPiso.getDouble("porcentajeBajada");
+            	            	Double porcentajeDinero = nextInfoPiso.getDouble("porcentajeDinero");
+            	            	
+            	            	if( porcentajeContraUltimoPiso <= porcentajeBajada ) {
+            	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso");
+            	            	}
+        	            	}
+    	            	}
+
+    	            	
+					}
+    	            
     	            currentlyCalculating.set(false);
     	        }
     		}
@@ -723,6 +764,61 @@ public class Currency implements Closeable {
     	
 
     }
+    
+    
+    private List<Trade> getTradesByPair(String pair){
+    	
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ? order by piso", pair);
+        List<JSONObject> tradesJson = TradeBotUtil.resultSetToListJSON(rs);
+        
+        List<Trade> trades = new ArrayList<Trade>();
+        for (JSONObject jsonObject : tradesJson) {
+        	
+        	double entryPrice = Double.valueOf(jsonObject.getString("entryprice"));
+        	double amount = Double.valueOf(jsonObject.getString("amount"));
+        	long openTime = jsonObject.getLong("opentime");
+        	double high = Double.valueOf(jsonObject.getString("high"));
+        	long piso = jsonObject.getLong("piso");
+        	
+        	Trade trade = new Trade(this, entryPrice, amount, "");
+        	trade.setOpenTime(openTime);
+        	trade.setAmount(amount);
+        	trade.setHigh(high);
+        	trade.setPiso(piso);
+        	trades.add(trade);
+		}
+        
+        
+        return trades;
+    }
+    
+    private Trade getTradeUltimoPisoByPair(String pair) {
+    	Trade trade = null;
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ? order by piso desc limit 1", pair);
+        JSONObject tradeUltimoPiso = TradeBotUtil.resultSetToJSON(rs);
+        
+        if(null != tradeUltimoPiso) {
+        	double entryPrice = Double.valueOf(tradeUltimoPiso.getString("entryprice"));
+        	double amount = Double.valueOf(tradeUltimoPiso.getString("amount"));
+        	long openTime = tradeUltimoPiso.getLong("opentime");
+        	double high = Double.valueOf(tradeUltimoPiso.getString("high"));
+        	long piso = tradeUltimoPiso.getLong("piso");
+        	
+        	trade = new Trade(this, entryPrice, amount, "");
+        	trade.setOpenTime(openTime);
+        	trade.setAmount(amount);
+        	trade.setHigh(high);
+        	trade.setPiso(piso);
+        }
+
+        
+        return trade;
+    }
+    
+    
+    
 
     public int check() {
         return indicators.stream().mapToInt(indicator -> indicator.check(currentPrice)).sum();

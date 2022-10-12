@@ -29,7 +29,6 @@ public class LocalAccount {
     private double startingValue;
     private final ConcurrentHashMap<Currency, Double> wallet;
     private final List<Trade> tradeHistory;
-    private final List<Trade> activeTrades;
     private double makerComission;
     private double takerComission;
     private double buyerComission;
@@ -44,7 +43,6 @@ public class LocalAccount {
         fiatValue = startingValue;
         wallet = new ConcurrentHashMap<>();
         tradeHistory = new ArrayList<>();
-        activeTrades = new CopyOnWriteArrayList<>();
     }
 
     public LocalAccount(String apiKey, String secretApiKey) {
@@ -52,7 +50,6 @@ public class LocalAccount {
         username = "";
         wallet = new ConcurrentHashMap<>();
         tradeHistory = new ArrayList<>();
-        activeTrades = new CopyOnWriteArrayList<>();
         realAccount = CurrentAPI.get().getAccount();
         if (!realAccount.isCanTrade()) {
             System.out.println("Can't trade!");
@@ -77,10 +74,6 @@ public class LocalAccount {
         return realAccount;
     }
 
-    //All backend.Trade methods
-    public List<Trade> getActiveTrades() {
-        return activeTrades;
-    }
 
     public List<Trade> getTradeHistory() {
         return tradeHistory;
@@ -91,26 +84,28 @@ public class LocalAccount {
     }
 
     public void openTrade(Trade trade) {
-        activeTrades.add(trade);
-        JDBCPostgres.create("insert into trade (opentime, entryprice, amount, total, high, currency) values (?,?,?,?,?,?)",
+    	System.out.println("Inicio método LocalAccount.openTrade");
+        JDBCPostgres.create("insert into trade (opentime, entryprice, amount, total, high, currency, piso) values (?,?,?,?,?,?,?)",
                 trade.getOpenTime(),
                 String.format("%.7f", trade.getEntryPrice()),
                 String.format("%.5f", trade.getAmount()),
                 String.format("%.7f", trade.getAmount() * trade.getEntryPrice()),
                 String.format("%.7f", trade.getHigh()),
-                trade.getCurrency().getPair());
+                trade.getCurrency().getPair(),
+                trade.getPiso());
+        System.out.println("Fin método LocalAccount.openTrade");
     }
 
     public void closeTrade(Trade trade) {
-        activeTrades.remove(trade);
-        
-    	ResultSet rs = JDBCPostgres.getResultSet("select currentprice currentprice, amount amount from trade where closetime is null and currency = ?", trade.getCurrency().getPair() );
+    	System.out.println("Inicio método LocalAccount.closeTrade");
+    	if(null == trade) return;
+    	
+    	ResultSet rs = JDBCPostgres.getResultSet("select currentprice currentprice, amount amount from trade where closetime is null and opentime = ?", trade.getOpenTime() );
     	JSONObject jsonObject = TradeBotUtil.resultSetToJSON(rs);
         
     	double amount = jsonObject.getDouble("amount");
     	double price = jsonObject.getDouble("currentprice");
         Double monto = price * amount;
-        String moneda = trade.getCurrency().getPair();
         
         
         JDBCPostgres.update("update trade set closetime = ?, closeprice = ? where opentime = ?",
@@ -118,10 +113,8 @@ public class LocalAccount {
                 String.format("%.7f", monto),
                 trade.getOpenTime());
         
-        JDBCPostgres.update("update monedamonto set monto = ? where moneda = ?", String.format("%.7f", monto), moneda);
-    	
         tradeHistory.add(trade);
-
+        System.out.println("Fin método LocalAccount.closeTrade");
     }
     
     
@@ -144,12 +137,15 @@ public class LocalAccount {
     public double getTotalValue() {
         double value = 0;
         ResultSet rs = JDBCPostgres.getResultSet(""
-        		+ "select currentprice, amount from trade "
+        		+ "select currency, currentprice, amount from trade "
         		+ "where closetime is null "
         		+ "and currentprice is not null "
         		+ "and amount is not null");
         List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
         for (JSONObject jsonObject : jsonObjects) {
+        	String currency = jsonObject.getString("currency");
+        	if(!currency.endsWith(ConfigSetup.getFiat())) continue;
+        	
         	double amount = jsonObject.getDouble("amount");
         	double price = jsonObject.getDouble("currentprice");
         	value += price * amount;

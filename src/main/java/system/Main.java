@@ -1,8 +1,6 @@
 package system;
 
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
-import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -13,7 +11,6 @@ import modes.Backtesting;
 import modes.Collection;
 import modes.Live;
 import modes.Simulation;
-import trading.BuySell;
 import trading.Currency;
 import trading.LocalAccount;
 import trading.Trade;
@@ -93,10 +90,10 @@ public class Main {
 					localAccount = Simulation.getAccount();
 					break;
 				case BACKTESTING:
-					Backtesting.startBacktesting(); // Init Backtesting mode.
-					currencies = Backtesting.getCurrencies();
-					localAccount = Backtesting.getAccount();
-					break;
+//					Backtesting.startBacktesting(); // Init Backtesting mode.
+//					currencies = Backtesting.getCurrencies();
+//					localAccount = Backtesting.getAccount();
+//					break;
 				}
 				long endTime = System.nanoTime();
 				double time = (endTime - startTime) / 1.e9;
@@ -128,13 +125,6 @@ public class Main {
 					case "profit":
 						System.out.println(
 								"\nAccount profit: " + Formatter.formatPercent(localAccount.getProfit()) + "\n");
-						break;
-					case "active":
-						System.out.println("\nActive trades:");
-						for (Trade trade : localAccount.getActiveTrades()) {
-							System.out.println(trade.toString2());
-						}
-						System.out.println(" ");
 						break;
 					case "secret":
 						if (!printing) {
@@ -189,24 +179,7 @@ public class Main {
 							System.out.println("\nID out of range, use \"currencies\" to see valid IDs!");
 							continue;
 						}
-						BuySell.open(currencies.get(openIndex - 1), "Trade opened due to: Manually opened\t");
-						break;
-					case "close":
-						System.out.println("Enter ID of active trade");
-						String closeId = sc.nextLine();
-						if (!closeId.matches("\\d+")) {
-							System.out.println("\nNot an integer!");
-							continue;
-						}
-						int closeIndex = Integer.parseInt(closeId);
-						if (closeIndex < 1 || closeIndex > currencies.size()) {
-							System.out.println("\nID out of range, use \"active\" to see valid IDs!");
-							continue;
-						}
-						BuySell.close(localAccount.getActiveTrades().get(closeIndex - 1));
-						break;
-					case "close all":
-						localAccount.getActiveTrades().forEach(BuySell::close);
+//						BuySell.open(currencies.get(openIndex - 1), "Trade opened due to: Manually opened\t");
 						break;
 					case "refresh":
 						if (Mode.get().equals(Mode.LIVE)) {

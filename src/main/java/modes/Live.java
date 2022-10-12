@@ -7,25 +7,15 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 
 import org.json.JSONObject;
 
-import com.binance.api.client.domain.OrderSide;
-import com.binance.api.client.domain.OrderStatus;
 import com.binance.api.client.domain.account.AssetBalance;
-import com.binance.api.client.domain.account.Order;
-import com.binance.api.client.domain.account.TradeHistoryItem;
-import com.binance.api.client.domain.account.request.AllOrdersRequest;
-import com.binance.api.client.domain.account.request.OrderRequest;
-import com.binance.api.client.domain.account.request.OrderStatusRequest;
 import com.binance.api.client.domain.general.FilterType;
 import com.binance.api.client.domain.general.SymbolFilter;
-import com.binance.api.client.domain.market.AggTrade;
-import com.binance.api.client.domain.market.OrderBook;
 
 import dbconnection.JDBCPostgres;
 import system.ConfigSetup;
@@ -121,8 +111,10 @@ public final class Live {
         } else {
         	currenciesSetup = ConfigSetup.getCurrencies();
         }
+        
         List<AssetBalance> balances = localAccount.getRealAccount().getBalances();
         List<String> monedasActivas = ConfigSetup.getMonedasActivas();
+        monedasActivas.addAll(currenciesSetup);
 
         balances = getBalancesOrdenadosByMonedasActivas(balances, monedasActivas);
         
@@ -150,7 +142,7 @@ public final class Live {
                             
                             
                             ResultSet rs =
-                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
+                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ? and piso = 1", balanceCurrency.getPair());
                             JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
 
                             Trade trade = null;
@@ -162,7 +154,6 @@ public final class Live {
                                 trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
                                 trade.setOpenTime(openTimeDB);
                                 trade.setHigh(high);
-                                localAccount.getActiveTrades().add(trade);
                                 balanceCurrency.setActiveTrade(trade);
                                 System.out.println("Added an active trade of " + balance.getFree() + " " + current + " at " + Formatter.formatDecimal(trade.getEntryPrice()) + " based on existing balance in account");
                             }
@@ -197,7 +188,7 @@ public final class Live {
                         }
                 	}catch(Exception e) {
                         System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-                        System.out.println(e.getLocalizedMessage());
+                        e.printStackTrace();
                         if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
                             System.out.println("Esperando 1 Minuto...");
                             Thread.sleep(30000);
@@ -220,7 +211,7 @@ public final class Live {
                             currencies.add(balanceCurrency);
                             
                             ResultSet rs =
-                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ?", balanceCurrency.getPair());
+                            JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ? and piso = 1", balanceCurrency.getPair());
                             JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
                             
                             Trade trade = null;
@@ -232,29 +223,23 @@ public final class Live {
                                 trade = new Trade(balanceCurrency, entrypriceDB, amount, "Trade opened due to: Added based on live account\t");
                                 trade.setOpenTime(openTimeDB);
                                 trade.setHigh(high);
-                                localAccount.getActiveTrades().add(trade);
                                 balanceCurrency.setActiveTrade(trade);
                             }
                             
                             
-                            AllOrdersRequest allOrdersRequest = new AllOrdersRequest(current + ConfigSetup.getFiat());
+                            /**TODO: Hacer lógica para chequear si la moneda actual tiene dinero invertido 
+                             * 		 Hay que chequear si el amount * currentPrice > 0
+                             * 		En caso de ser cierto entonces meter localAccount.closeTrade(trade);
+                             * 
+                             * **/
                             
-                            List<Order> orders = CurrentAPI.get().getAllOrders(allOrdersRequest);
-                            
-                            orders.sort(Comparator.comparing(Order::getTime).reversed());
-                            
-                            Order order = orders.get(0);
-                            
-                            if (order.getSide().equals(OrderSide.SELL)) {
-                                localAccount.closeTrade(trade);
-                                continue;
-                            }
+
                             
                             
                         }
                 	}catch(Exception e) {
                         System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-                        System.out.println(e.getLocalizedMessage());
+                        e.printStackTrace();
                         if(e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
                             System.out.println("Esperando 1 Minuto...");
                             Thread.sleep(30000);

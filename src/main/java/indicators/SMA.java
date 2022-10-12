@@ -3,6 +3,8 @@ package indicators;
 import java.util.LinkedList;
 import java.util.List;
 
+import utils.CollectionUtil;
+
 public class SMA implements Indicator {
 
     private double currentSum;
@@ -38,6 +40,7 @@ public class SMA implements Indicator {
 
     @Override
     public void update(double newPrice) {
+    	if(CollectionUtil.isNullOrEmpty(prices))return;
         currentSum -= prices.get(0);
         prices.removeFirst();
         prices.add(newPrice);

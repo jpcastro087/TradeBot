@@ -27,6 +27,10 @@ public class Trade {
 	private long closeTime;
 
 	private String explanation;
+	
+	private Long piso;
+	
+	private Double takeProfit;
 
 	public Trade(Currency currency, double entryPrice, double amount, String explanation) {
 		this.currency = currency;
@@ -115,40 +119,41 @@ public class Trade {
 	public long getDuration() {
 		return this.closeTime - this.openTime;
 	}
-	
 
-	public void update(double newPrice, int confluence) {
+	public Long getPiso() {
+		return piso;
+	}
+
+	public void setPiso(Long piso) {
+		this.piso = piso;
+	}
+	
+	public Double getTakeProfit() {
+		return takeProfit;
+	}
+
+	public void setTakeProfit(Double takeProfit) {
+		this.takeProfit = takeProfit;
+	}
+
+	public void update(double newPrice) {
+		
 		if (newPrice > this.high) {
 			this.high = newPrice;
 			JDBCPostgres.update("update trade set high = ? where opentime = ?", new Object[] {
 					String.format("%.7f", new Object[] { Double.valueOf(this.high) }), Long.valueOf(getOpenTime()) });
 		}
-		if (getProfit() > TAKE_PROFIT) {
+		
+		if (getProfit() > getTakeProfit()) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Take profit";
 			BuySell.close(this);
 			return;
 		}
-		if (Double.valueOf(TRAILING_SL).doubleValue() == 99.99D)
-			return;
-		
-//		if (newPrice < this.high * (1.0D - getHighProfit() / 3D) && getProfit() > 2) {
-//			this.explanation = String.valueOf(this.explanation) + "Closed due to: Trailing SL";
-//			BuySell.close(this);
-//			return;
-//		}
-		
-		if (CLOSE_USE_CONFLUENCE && confluence <= -CLOSE_CONFLUENCE) {
-			this.explanation = String.valueOf(this.explanation) + "Closed due to: Indicator confluence of "
-					+ confluence;
-			BuySell.close(this);
-		}
+
 	}
 
 	public String toString() {
-		return String
-				.valueOf(isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-						: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1))
-				+ " " + this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + "\n" + "open: "
+		return   this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + "\n" + "open: "
 				+ Formatter.formatDate(this.openTime) + " at " + this.entryPrice + "\n"
 				+ (isClosed() ? ("close: " + Formatter.formatDate(this.closeTime) + " at " + this.closePrice)
 						: ("current price: " + this.currency.getPrice()))
@@ -157,10 +162,7 @@ public class Trade {
 	}
 
 	public String toString2() {
-		return String
-				.valueOf(isClosed() ? (BuySell.getAccount().getTradeHistory().indexOf(this) + 1)
-						: (BuySell.getAccount().getActiveTrades().indexOf(this) + 1))
-				+ " " + this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + " - " + "open: "
+		return this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + " - " + "open: "
 				+ Formatter.formatDate(this.openTime) + " at " + this.entryPrice + " - " + "current price: "
 				+ this.currency.getPrice() + " profit: " + Formatter.formatPercent(getProfit());
 	}

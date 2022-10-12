@@ -1,5 +1,15 @@
 package trading;
 
+import static com.binance.api.client.domain.account.NewOrder.marketBuy;
+import static com.binance.api.client.domain.account.NewOrder.marketSell;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.util.Optional;
+
+import org.json.JSONObject;
+
 import com.binance.api.client.BinanceApiRestClient;
 import com.binance.api.client.domain.OrderStatus;
 import com.binance.api.client.domain.account.NewOrderResponse;
@@ -13,17 +23,6 @@ import system.ConfigSetup;
 import system.Formatter;
 import system.Mode;
 import utils.TradeBotUtil;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.sql.ResultSet;
-import java.util.Date;
-import java.util.Optional;
-
-import org.json.JSONObject;
-
-import static com.binance.api.client.domain.account.NewOrder.marketBuy;
-import static com.binance.api.client.domain.account.NewOrder.marketSell;
 
 public class BuySell {
 
@@ -46,20 +45,15 @@ public class BuySell {
         throw new IllegalStateException("Utility class");
     }
 
-    public static boolean enoughFunds(String pair) {
-        return nextAmount(pair) != 0;
+    public static boolean enoughFunds(String pair, Double porcentajeDinero) {
+        return nextAmount(pair, porcentajeDinero) != 0;
     }
 
     //Used by strategy
-    public static void open(Currency currency, String explanation) {
-    	int cantidadTradesActivos = getCountTradesActivos();
-    	if( cantidadTradesActivos >= CANTIDAD_TRADES_ACTIVOS_PERMITIDOS ) return;
+    public static void open(Currency currency, Double porcentajeDinero, Long ultimoPiso, String explanation) {
+    	System.out.println("Inicio método BuySell.open");
     	String pair = currency.getPair();
-        if (currency.hasActiveTrade()) {
-            System.out.println("---Cannot open trade since there already is an open trade for " + currency.getPair() + "!");
-            return;
-        }
-        if (!enoughFunds(pair)) {
+        if (!enoughFunds(pair, porcentajeDinero)) {
             System.out.println("---Out of funds, cannot open trade! (" + Formatter.formatDecimal(localAccount.getFiat()) + ")");
             return; //If no fiat is available, we cant trade
         }
@@ -68,13 +62,8 @@ public class BuySell {
         
         double fiatCost = 0D;
         
-		Double monto = getSiguienteMontoByMoneda(pair);
-		if(null == monto) {
-			fiatCost = nextAmount(pair);
-			JDBCPostgres.update("insert into monedamonto(moneda, monto) values(?,?)", pair, String.format("%.7f", fiatCost) );
-		} else {
-			fiatCost = Math.min(localAccount.getFiat(), monto);
-		}
+		fiatCost = nextAmount(pair, porcentajeDinero);
+		JDBCPostgres.update("insert into monedamonto(moneda, monto) values(?,?)", pair, String.format("%.7f", fiatCost) );
         
         
         double amount = fiatCost / currency.getPrice();
@@ -111,6 +100,7 @@ public class BuySell {
         //Converting fiat value to coin value
         localAccount.addToFiat(-fiatCost);
         localAccount.addToWallet(currency, amount);
+        trade.setPiso(ultimoPiso);
         localAccount.openTrade(trade);
 
         String message = "---" + Formatter.formatDate(trade.getOpenTime())
@@ -119,32 +109,18 @@ public class BuySell {
                 + ", " + trade.getExplanation();
         System.out.println(message);
         if (Mode.get().equals(Mode.BACKTESTING)) currency.appendLogLine(message);
+        System.out.println("Fin método BuySell.open");
     }
 
     //Used by trade
     public static void close(Trade trade) {
+    	System.out.println("Inicio método BuySell.close");
         if (Mode.get().equals(Mode.LIVE)) {
-            NewOrderResponse order = placeOrder(trade.getCurrency(), trade.getAmount(), false, trade);
-            if (order == null) {
-                return;
-            }
-            double fillsQty = 0;
-            double fillsPrice = 0;
-            for (com.binance.api.client.domain.account.Trade fill : order.getFills()) {
-                double qty = Double.parseDouble(fill.getQty());
-                fillsQty += qty;
-                fillsPrice += qty * Double.parseDouble(fill.getPrice()) - Double.parseDouble(fill.getCommission());
-            }
-            System.out.println("Got filled for " + BigDecimal.valueOf(fillsQty).toString()
-                    + " at " + Formatter.formatDate(order.getTransactTime())
-                    + ", at a price of " + Formatter.formatDecimal(fillsPrice) + " " + ConfigSetup.getFiat());
-            trade.setClosePrice(fillsPrice / fillsQty);
-            trade.setCloseTime(order.getTransactTime());
-            localAccount.removeFromWallet(trade.getCurrency(), fillsQty);
-            localAccount.addToFiat(fillsPrice);
-            System.out.println("Closed trade at an avg close of " + Formatter.formatDecimal(trade.getClosePrice()) + " ("
-                    + Formatter.formatPercent((trade.getClosePrice() - trade.getCurrency().getPrice()) / trade.getClosePrice())
-                    + " from current)");
+        	
+        	
+        	closeTrade(trade);
+        	
+            
         } else {
             trade.setClosePrice(trade.getCurrency().getPrice());
             trade.setCloseTime(trade.getCurrency().getCurrentTime());
@@ -162,22 +138,38 @@ public class BuySell {
                 + ", with " + Formatter.formatPercent(trade.getProfit()) + " profit"
                 + "\n------" + trade.getExplanation();
         System.out.println(message);
+        System.out.println("Fin método BuySell.close");
     }
 
-    private static double nextAmount(String pair) {
-    	if(AUMENTAR_PORCENTAJE_TRADES_EXITOSOS_24HR) {
-        	int countCloseTrades24Hr = getCountTradesCloses24Hours(pair);
-        	if(countCloseTrades24Hr >= CANTIDAD_TRADES_EXITOSOS_NECESARIOS) {
-        		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * PORCENTAJE_PARA_TRADES_EXITOSOS );
-        	} else {
-        		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * MONEY_PER_TRADE);
-        	}
-    	} else {
-    		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * MONEY_PER_TRADE);
-    	}
+    private static double nextAmount(String pair, Double porcentaje) {
+    		return Math.min(localAccount.getFiat(), localAccount.getTotalValue() * porcentaje);
     }
     
-    
+    private static void closeTrade(Trade trade) {
+    	System.out.println("Inicio BuySell.closeTrade");
+    	NewOrderResponse order = placeOrder(trade.getCurrency(), trade.getAmount(), false, trade);
+        if (order == null) {
+            return;
+        }
+        double fillsQty = 0;
+        double fillsPrice = 0;
+        for (com.binance.api.client.domain.account.Trade fill : order.getFills()) {
+            double qty = Double.parseDouble(fill.getQty());
+            fillsQty += qty;
+            fillsPrice += qty * Double.parseDouble(fill.getPrice()) - Double.parseDouble(fill.getCommission());
+        }
+        System.out.println("Got filled for " + BigDecimal.valueOf(fillsQty).toString()
+                + " at " + Formatter.formatDate(order.getTransactTime())
+                + ", at a price of " + Formatter.formatDecimal(fillsPrice) + " " + ConfigSetup.getFiat());
+//        trade.setClosePrice(fillsPrice / fillsQty);
+//        trade.setCloseTime(order.getTransactTime());
+//        localAccount.removeFromWallet(trade.getCurrency(), fillsQty);
+//        localAccount.addToFiat(fillsPrice);
+//        System.out.println("Closed trade at an avg close of " + Formatter.formatDecimal(trade.getClosePrice()) + " ("
+//                + Formatter.formatPercent((trade.getClosePrice() - trade.getCurrency().getPrice()) / trade.getClosePrice())
+//                + " from current)");
+        System.out.println("Fin BuySell.closeTrade");
+    }
     
     
     
@@ -210,19 +202,9 @@ public class BuySell {
     }
     
     
-    private static int getCountTradesActivos() {
-    	int cantidad = 0;
-    	
-    	if(null != localAccount.getActiveTrades()) {
-    		cantidad = localAccount.getActiveTrades().size();
-    	}
-    	
-    	return cantidad;
-    }
-
-
     //TODO: Implement limit ordering
     public static NewOrderResponse placeOrder(Currency currency, double amount, boolean buy, Trade trade) {
+    	System.out.println("Inicio BuySell.placeOder");
         System.out.println("\n---Placing a " + (buy ? "buy" : "sell") + " market order for " + currency.getPair());
         BigDecimal originalDecimal = BigDecimal.valueOf(amount);
         //Round amount to base precision and LOT_SIZE
@@ -267,6 +249,7 @@ public class BuySell {
             if (!order.getStatus().equals(OrderStatus.FILLED)) {
                 System.out.println("Order is " + order.getStatus() + ", not FILLED!");
             }
+            System.out.println("Fin BuySell.placeOder");
             return order;
         } catch (BinanceApiException e) {
             System.out.println("---Failed " + (buy ? "buy" : "sell") + " " + convertedAmount + " " + currency.getPair());
@@ -285,8 +268,9 @@ public class BuySell {
             	}
             }
             
-            
             return null;
         }
     }
+
+    
 }

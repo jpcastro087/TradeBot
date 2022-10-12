@@ -1,15 +1,15 @@
 unidad de tiempo:FOUR_HOURLY
 cantidad periodos:270
-sumar porcentaje margen minimo esperado:0.08
-Percentage of money per trade:0.0
-Take profit:0.07
-cantidad trades permitidos:1
+sumar porcentaje margen minimo esperado:0.0
+Percentage of money per trade:0.00086
+Take profit:0.1
+cantidad trades permitidos:20
 user database:postgres
 pass database:postgres
 escanear del listado currencies to track:true
-Currencies to track:BNB
-Currencies to not track:LUNC, USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
-FIAT:BTC
+Currencies to track:PHB
+Currencies to not track:USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
+FIAT:BUSD
 
 
 

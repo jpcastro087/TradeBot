@@ -16,12 +16,16 @@ import utils.TradeBotUtil;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.util.*;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 public class ConfigSetup {
 	private static final int REQUEST_LIMIT_FALLBACK = 1200;
@@ -102,12 +106,42 @@ public class ConfigSetup {
 		for (JSONObject jsonObject : jsonObjects) {
 			String currency = jsonObject.getString("currency");
 			if(currency.endsWith(fiat)) {
-				currency = currency.substring(0, currency.length()-4);
+				currency = currency.substring(0, currency.length()-fiat.length());
 				result.add(currency);
 			}
 		}
 		return result;
 	}
+	
+	
+	public static JSONObject getInfoPiso(Long piso, String pair) throws Exception {
+		JSONObject result = null;
+		JSONParser parser = new JSONParser();
+		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
+		  for (Object o : pisos)
+		  {
+			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
+			  Long nroPiso = (Long)current.get("nro");
+			  String pairPiso = (String)current.get("pair");
+			  if(nroPiso.equals(piso) && pair.equals(pairPiso)) {
+				  Double porcentajeBajada = (Double)current.get("porcentajeBajada");
+				  Double porcentajeDinero = (Double)current.get("porcentajeDinero");
+				  Double takeProfit = (Double)current.get("takeProfit");
+				  Double margen = (Double)current.get("margen");
+				  result = new JSONObject();
+				  result.put("nro",piso);
+				  result.put("porcentajeBajada",porcentajeBajada);
+				  result.put("porcentajeDinero",porcentajeDinero);
+				  result.put("takeProfit",takeProfit);
+				  result.put("pair", pairPiso);
+				  result.put("margen", margen);
+				  break;
+			  }
+		  }
+		return result;
+	}
+	
+	
 
 	public static int getRequestLimit() {
 		return REQUEST_LIMIT;
@@ -239,6 +273,10 @@ public class ConfigSetup {
 					break;
 				case "Currencies to not track":
 					currenciesNotTrack = Collections.unmodifiableList(Arrays.asList(arr[1].toUpperCase().split(", ")));
+					break;
+					
+				case "pisos":
+						System.out.println(String.valueOf(arr[1]));
 					break;
 					
 				default:
