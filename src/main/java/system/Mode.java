@@ -1,6 +1,5 @@
 package system;
 
-import modes.Live;
 import modes.Simulation;
 
 
@@ -21,7 +20,6 @@ public enum Mode {
         if (state.equals(Mode.SIMULATION)) {
             Simulation.close();
         } else {
-            Live.close();
         }
     }
 

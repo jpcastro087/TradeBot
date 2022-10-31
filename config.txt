@@ -4,10 +4,11 @@ sumar porcentaje margen minimo esperado:0.0
 Percentage of money per trade:0.00086
 Take profit:0.1
 cantidad trades permitidos:20
-user database:postgres
-pass database:postgres
+host database:192.168.100.34
+user database:juan
+pass database:123
 escanear del listado currencies to track:true
-Currencies to track:PHB
+Currencies to track:PHA, ETC, MATIC, ADA, LUNC, LAZIO, XRP, FIL, PHB, INJ, IMX, NEAR, SNT, AVAX, VIB, GALA, BETA, VIDT
 Currencies to not track:USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
 FIAT:BUSD
 

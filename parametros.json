@@ -1,0 +1,4 @@
+[
+	{"id":"COMPRA_POR_ULTIMA_VELA", "unidadTiempo":"FOUR_HOURLY", "periodoAtrasParaPromedio":42, "activado":true },
+	{"id":"CALCULAR_PORCENTAJES_AUTOMATICAMENTE", "calculaPorcentajeBajada":true, "calculaPorcentajeTakeProfit":true }
+]

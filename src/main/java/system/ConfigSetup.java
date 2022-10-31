@@ -1,5 +1,21 @@
 package system;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Scanner;
+import java.util.TimeZone;
+
+import org.json.JSONObject;
+import org.json.simple.parser.JSONParser;
+
 import com.binance.api.client.domain.general.RateLimit;
 import com.binance.api.client.domain.general.RateLimitType;
 import com.binance.api.client.domain.market.TickerStatistics;
@@ -14,24 +30,12 @@ import trading.CurrentAPI;
 import trading.Trade;
 import utils.TradeBotUtil;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.sql.ResultSet;
-import java.util.*;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
 public class ConfigSetup {
 	private static final int REQUEST_LIMIT_FALLBACK = 1200;
 	private static int REQUEST_LIMIT;
     public static String USER_DATABASE;
     public static String PASS_DATABASE;
+    public static String HOST_DATABASE;
     private static Double PORCENTAJE_DESDE;
     private static Double PORCENTAJE_HASTA;
     public static boolean COMPRA_DE_CUALQUIER_MANERA;
@@ -100,7 +104,7 @@ public class ConfigSetup {
 
 	public static List<String> getMonedasActivas() {
 		List<String> result = new ArrayList<String>();
-		ResultSet rs = JDBCPostgres.getResultSet("select currency from trade where closetime is null");
+		ResultSet rs = JDBCPostgres.getResultSet("select currency from trade where closetime is null and piso = 1");
 		
 		List<JSONObject> jsonObjects = TradeBotUtil.resultSetToListJSON(rs);
 		for (JSONObject jsonObject : jsonObjects) {
@@ -115,6 +119,32 @@ public class ConfigSetup {
 	
 	
 	public static JSONObject getInfoPiso(Long piso, String pair) throws Exception {
+		JSONObject result = getPiso(piso, pair);
+		if(null == result && piso.equals(1l)) {
+			result = getPiso(piso, "DEFAULT");
+		}
+		return result;
+	}
+	
+	
+	public static JSONObject getParametro(String id) throws Exception {
+		JSONObject result = null;
+		JSONParser parser = new JSONParser();
+		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("parametros.json"));
+		  for (Object o : pisos)
+		  {
+			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
+			  String currentId = (String)current.get("id");
+			  if(currentId.equals(id)) {
+				  result = new JSONObject(current.toJSONString());  
+				  break;
+			  }
+		  }
+		return result;
+	}
+	
+	
+	private static JSONObject getPiso(Long piso, String pair) throws Exception {
 		JSONObject result = null;
 		JSONParser parser = new JSONParser();
 		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
@@ -124,20 +154,36 @@ public class ConfigSetup {
 			  Long nroPiso = (Long)current.get("nro");
 			  String pairPiso = (String)current.get("pair");
 			  if(nroPiso.equals(piso) && pair.equals(pairPiso)) {
-				  Double porcentajeBajada = (Double)current.get("porcentajeBajada");
-				  Double porcentajeDinero = (Double)current.get("porcentajeDinero");
-				  Double takeProfit = (Double)current.get("takeProfit");
-				  Double margen = (Double)current.get("margen");
-				  result = new JSONObject();
-				  result.put("nro",piso);
-				  result.put("porcentajeBajada",porcentajeBajada);
-				  result.put("porcentajeDinero",porcentajeDinero);
-				  result.put("takeProfit",takeProfit);
-				  result.put("pair", pairPiso);
-				  result.put("margen", margen);
+				  result = new JSONObject(current.toJSONString());
 				  break;
 			  }
 		  }
+		return result;
+	}
+	
+	
+	public static Integer getCountPisosByPair(String pair) throws Exception {
+		Integer result = 0;
+		JSONParser parser = new JSONParser();
+		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
+		  for (Object o : pisos) {
+			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
+			  String pairPiso = (String)current.get("pair");
+			  if(pair.equals(pairPiso)) {
+				  result++;
+			  }
+		  }
+		  
+		  if(result == 0) {
+			  for (Object o : pisos) {
+				  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
+				  String pairPiso = (String)current.get("pair");
+				  if("DEFAULT".equals(pairPiso)) {
+					  result++;
+				  }
+			  }
+		  }
+		  
 		return result;
 	}
 	
@@ -242,6 +288,9 @@ public class ConfigSetup {
 					break;
 				case "cantidad trades permitidos":
 					BuySell.CANTIDAD_TRADES_ACTIVOS_PERMITIDOS = Integer.parseInt(arr[1]);
+					break;
+				case "host database":
+					HOST_DATABASE = String.valueOf(arr[1]);
 					break;
 				case "user database":
 					USER_DATABASE = String.valueOf(arr[1]);

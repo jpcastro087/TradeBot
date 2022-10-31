@@ -63,8 +63,8 @@ public class BuySell {
         double fiatCost = 0D;
         
 		fiatCost = nextAmount(pair, porcentajeDinero);
+		
 		JDBCPostgres.update("insert into monedamonto(moneda, monto) values(?,?)", pair, String.format("%.7f", fiatCost) );
-        
         
         double amount = fiatCost / currency.getPrice();
 

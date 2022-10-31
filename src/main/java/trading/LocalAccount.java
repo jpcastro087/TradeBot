@@ -182,12 +182,6 @@ public class LocalAccount {
     }
     
     private Double getPryce(String currency) {
-    	List<Currency> currencies = Live.getCurrencies();
-    	for (Currency currentCurrency : currencies) {
-			if(currentCurrency.getPair().equals(currency)) {
-				return currentCurrency.getPrice();
-			}
-		}
     	return 0D;
     }
     

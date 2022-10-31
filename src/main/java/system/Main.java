@@ -82,7 +82,6 @@ public class Main {
 				case LIVE:
 					Live.init(); // Init live mode.
 					localAccount = Live.getAccount();
-					currencies = Live.getCurrencies();
 					break;
 				case SIMULATION:
 					Simulation.init(); // Init simulation mode.
