@@ -147,6 +147,7 @@ public class Trade {
 		if (getProfit() > getTakeProfit()) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Take profit";
 			BuySell.close(this);
+			System.out.println("-------------Vendió a "+getTakeProfit()+"% -------------");
 			return;
 		}
 

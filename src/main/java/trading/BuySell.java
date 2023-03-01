@@ -116,11 +116,7 @@ public class BuySell {
     public static void close(Trade trade) {
     	System.out.println("Inicio método BuySell.close");
         if (Mode.get().equals(Mode.LIVE)) {
-        	
-        	
         	closeTrade(trade);
-        	
-            
         } else {
             trade.setClosePrice(trade.getCurrency().getPrice());
             trade.setCloseTime(trade.getCurrency().getCurrentTime());
@@ -161,13 +157,6 @@ public class BuySell {
         System.out.println("Got filled for " + BigDecimal.valueOf(fillsQty).toString()
                 + " at " + Formatter.formatDate(order.getTransactTime())
                 + ", at a price of " + Formatter.formatDecimal(fillsPrice) + " " + ConfigSetup.getFiat());
-//        trade.setClosePrice(fillsPrice / fillsQty);
-//        trade.setCloseTime(order.getTransactTime());
-//        localAccount.removeFromWallet(trade.getCurrency(), fillsQty);
-//        localAccount.addToFiat(fillsPrice);
-//        System.out.println("Closed trade at an avg close of " + Formatter.formatDecimal(trade.getClosePrice()) + " ("
-//                + Formatter.formatPercent((trade.getClosePrice() - trade.getCurrency().getPrice()) / trade.getClosePrice())
-//                + " from current)");
         System.out.println("Fin BuySell.closeTrade");
     }
     

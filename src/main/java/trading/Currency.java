@@ -71,43 +71,32 @@ public class Currency implements Closeable {
     private boolean esAptaParaComprar;
 
     //Used for SIMULATION and LIVE
-    public Currency(String coin) throws Exception {
-        this.pair = coin + ConfigSetup.getFiat();
+    public Currency(String coin, LocalAccount localAccount) throws Exception {
+        this.pair = String.valueOf(coin) + ConfigSetup.getFiat();
         this.coin = coin;
-
-        //Every currency needs to contain and update our indicators
-        List<Candlestick> history = getHistoryPeriodosAtras(pair, CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
-        
-        if(CollectionUtil.isNullOrEmpty(history))return;
-        
+        this.localAccount = localAccount;
+        List<Candlestick> history = getHistoryPeriodosAtras(this.pair, CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
+        if (CollectionUtil.isNullOrEmpty(history)) return; 
         List<String> monedasActivas = ConfigSetup.getMonedasActivas();
-//        if(!esVolatil(history) && !monedasActivas.contains(coin)) return;
-        
-        List<Double> closingPrices = history.stream().map(candle -> Double.parseDouble(candle.getClose())).collect(Collectors.toList());
-        indicators.add(new RSI(closingPrices, 0));
-        indicators.add(new MACD(closingPrices, 0, 0, 0));
-        indicators.add(new DBB(closingPrices, 0));
-
-        //We set the initial values to check against in onMessage based on the latest candle in history
-        currentTime = System.currentTimeMillis();
-        candleTime = history.get(history.size()-1).getCloseTime();
-        currentPrice = Double.parseDouble(history.get(history.size()-1).getClose());
-        
-        
+        List<Double> closingPrices = (List<Double>)history.stream().map(candle -> Double.valueOf(Double.parseDouble(candle.getClose()))).collect(Collectors.toList());
+        this.indicators.add(new RSI(closingPrices, 0));
+        this.indicators.add(new MACD(closingPrices, 0, 0, 0));
+        this.indicators.add(new DBB(closingPrices, 0));
+        this.currentTime = System.currentTimeMillis();
+        this.candleTime = ((Candlestick)history.get(history.size() - 1)).getCloseTime().longValue();
+        this.currentPrice = Double.parseDouble(((Candlestick)history.get(history.size() - 1)).getClose());
         changeEsAptaParaComprar(history);
-        
-        if(esAptaParaComprar || monedasActivas.contains(coin) ) {
-        	actualizarPisos(pair);
-        	if(!monedasActivas.contains(coin)) {
-        		System.out.println(coin+ "Inicio Compra en Constructor Currency(String coin)");
-        		JSONObject infoPiso = ConfigSetup.getInfoPiso(1l, pair);
-        		Double porcentaje = infoPiso.getDouble("porcentajeDinero");
-        		BuySell.open(this, porcentaje, 1l, "ES APTA PARA COMPRAR");
-        		System.out.println(coin+ "Fin Compra en Constructor Venta en Currency(String coin)");
-        	}
-        }
-        
-//        System.out.println("---	j	SETUP DONE FOR " + this);
+        if (this.esAptaParaComprar || monedasActivas.contains(coin)) {
+        actualizarPisos(this.pair);
+          if (!monedasActivas.contains(coin)) {
+            System.out.println(String.valueOf(coin) + "Inicio Compra en Constructor Currency(String coin)");
+            JSONObject infoPiso = ConfigSetup.getInfoPiso(Long.valueOf(1L), this.pair);
+            Double porcentaje = Double.valueOf(infoPiso.getDouble("porcentajeDinero"));
+//            BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR");
+            System.out.println("+++++++++++Compró piso 1 porcentajeDinero:"+ porcentaje +" +++++++++++");
+            System.out.println(String.valueOf(coin) + "Fin Compra en Constructor Venta en Currency(String coin)");
+          } 
+        } 
     }
     
     
@@ -118,44 +107,95 @@ public class Currency implements Closeable {
     	
     	
     	
-        JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?", String.format("%.9f", currentPrice), pair);
+    	
+    	List<JSONObject> pisos = ConfigSetup.getPisos(pair);
+    	
+    	if(!CollectionUtil.isNullOrEmpty(pisos)) {
+    		for (JSONObject piso : pisos) {
+    			Long nroPiso = piso.getLong("nro");
+    			Trade tradePisoActual = getTradeByPairAndNroPiso(pair, nroPiso);
+    			if(null != tradePisoActual) {
+    				updatePiso(tradePisoActual, piso);
+    				Trade tradePisoSiguiente = getTradeByPairAndNroPiso(pair, nroPiso+1);
+    				if(null == tradePisoSiguiente) {
+        				JSONObject siguientePiso = ConfigSetup.getInfoPiso(tradePisoActual.getPiso() + 1, pair);
+        				if(null != siguientePiso) {
+        					double porcentajePerdidaTradeActual = (currentPrice - tradePisoActual.getEntryPrice()) / tradePisoActual.getEntryPrice();
+        					double porcentajeBajadaPisoSiguiente = getPorcentajeBajada(siguientePiso);
+        					if(porcentajePerdidaTradeActual <= porcentajeBajadaPisoSiguiente) {
+        		            	Double porcentajeDinero = siguientePiso.getDouble("porcentajeDinero");
+        		            	Long nroPisoComprado = siguientePiso.getLong("nro");
+        						System.out.println("+++++++++++Compró piso "+ nroPisoComprado + " porcentajeBajada:"+ porcentajeBajadaPisoSiguiente + " porcentajeDinero:"+ porcentajeDinero +" +++++++++++");
+        	            		BuySell.open(this, porcentajeDinero, nroPisoComprado, "Abierto por ultimo piso");
+        					}
+        				}
+    				}
+    			}
+
+			}
+
+    	}
+    	
+    	//Recuperar todos los pisos de pisos.json
+    	//Por cada piso							  
+    		//Actualizar Piso					  
+    		//Si el piso actual es distinto de 1
+    			//Si el piso actual tiene abierto piso anterior en la base de datos
+    				//Obtener el porcentaje de ganancia del piso anterior
+    				//Si el porcentaje de ganancia del piso anterior es menor o igual al porcentaje indicado en porcentajeBajada del piso actual
+    					//Abrir piso actual
     	
     	
-    	List<Trade> trades = getTradesByPair(pair);
-        
-        for (Trade trade : trades) {
-        	
-        	JSONObject infoPiso = ConfigSetup.getInfoPiso(trade.getPiso(), pair);
-        	trade.setTakeProfit(infoPiso.getDouble("takeProfit"));
-        	trade.update(currentPrice);//Update the active trade stop-loss and high values
-
-        	
-        	Trade tradeUltimoPiso = getTradeUltimoPisoByPair(pair);
-        	if(null != tradeUltimoPiso) {
-            	double entryPriceUltimoPiso = tradeUltimoPiso.getEntryPrice();
-            	double porcentajeContraUltimoPiso = (currentPrice - entryPriceUltimoPiso) / entryPriceUltimoPiso;
-            	DecimalFormat df = new DecimalFormat("#.###");
-            	df.setRoundingMode(RoundingMode.CEILING);
-            	porcentajeContraUltimoPiso = Double.valueOf(df.format(porcentajeContraUltimoPiso));
-            	
-            	
-            	JSONObject nextInfoPiso = ConfigSetup.getInfoPiso(tradeUltimoPiso.getPiso() + 1, pair);
-            	
-            	if(null != nextInfoPiso) {
-	            	Double porcentajeBajada = nextInfoPiso.getDouble("porcentajeBajada");
-	            	Double porcentajeDinero = nextInfoPiso.getDouble("porcentajeDinero");
-	            	
-	            	if(porcentajeContraUltimoPiso <= porcentajeBajada ) {
-	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso");
-	            	}
-            	}
-        	}
-
-        	
-		}
+    	
+    	
+//        JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?", String.format("%.9f", currentPrice), pair);
+//    	
+//    	
+//    	List<Trade> trades = getTradesByPair(pair);
+//        
+//        for (Trade trade : trades) {
+//        	
+//        	JSONObject infoPiso = ConfigSetup.getInfoPiso(trade.getPiso(), pair);
+//        	trade.setTakeProfit(infoPiso.getDouble("takeProfit"));
+//        	trade.update(currentPrice);//Update the active trade stop-loss and high values
+//
+//        	
+//        	Trade tradeUltimoPiso = getTradeUltimoPisoByPair(pair);
+//        	if(null != tradeUltimoPiso) {
+//            	double entryPriceUltimoPiso = tradeUltimoPiso.getEntryPrice();
+//            	double porcentajeContraUltimoPiso = (currentPrice - entryPriceUltimoPiso) / entryPriceUltimoPiso;
+//            	DecimalFormat df = new DecimalFormat("#.###");
+//            	df.setRoundingMode(RoundingMode.CEILING);
+//            	porcentajeContraUltimoPiso = Double.valueOf(df.format(porcentajeContraUltimoPiso));
+//            	
+//            	
+//            	JSONObject nextInfoPiso = ConfigSetup.getInfoPiso(tradeUltimoPiso.getPiso() + 1, pair);
+//            	
+//            	if(null != nextInfoPiso) {
+//	            	Double porcentajeBajada = nextInfoPiso.getDouble("porcentajeBajada");
+//	            	Double porcentajeDinero = nextInfoPiso.getDouble("porcentajeDinero");
+//	            	
+//	            	if(porcentajeContraUltimoPiso <= porcentajeBajada ) {
+//	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso");
+//	            	}
+//            	}
+//        	}
+//
+//        	
+//		}
     }
     
     
+    private void updatePiso(Trade trade, JSONObject piso) {
+    	if(null != trade) {
+        	trade.setTakeProfit(piso.getDouble("takeProfit"));
+        	trade.update(currentPrice);
+    	}
+    }
+    
+    private Double getPorcentajeBajada(JSONObject piso) {
+    	return piso.getDouble("porcentajeBajada");
+    }
     
     
     public boolean esAptaParaComprar() {
@@ -206,55 +246,44 @@ public class Currency implements Closeable {
     
     private void changeEsAptaParaComprar(List<Candlestick> history) throws Exception {
     	
-    	List<Double> minimos = getMinimos(history);
-		
-    	
-		if(!CollectionUtil.isNullOrEmpty(minimos)) {
-			
-		    Double min = getPromedio(minimos);
-		    
-		    JSONObject infoPiso = ConfigSetup.getInfoPiso(1l, pair);
-		    
-		    Double margenMinimo = infoPiso.getDouble("margen");
-		    
-		    Double minEsperado = (min + (min * margenMinimo));
-		    Double porcentajeABajarEsperado = ((currentPrice - minEsperado) / minEsperado) * 100;
-		    
-		    if(porcentajeABajarEsperado < 0) {
-		    	porcentajeABajarEsperado = 0d;
-		    }
-		    
-		    String trackeo = this.pair +" Tiene que bajar a un "+ String.format("%.2f", porcentajeABajarEsperado);
-		    
-			List<Trade> trades = getTradesByPair(pair);
-			
-			if(!CollectionUtil.isNullOrEmpty(trades)) {
-				for (Trade trade : trades) {
-					Double entryPrice = trade.getEntryPrice();
-					Long piso = trade.getPiso();
-					Double porcentajePiso = ((currentPrice - entryPrice) / entryPrice) * 100;
-					
-					if(porcentajePiso < 0) {
-						trackeo += " - Piso "+ piso + " "+ String.format("%.2f", porcentajePiso)  +"%";
-					} else {
-						trackeo += " - Piso "+ piso + " +"+ String.format("%.2f", porcentajePiso)  +"%";
-					}
-					
-					
-				}
-			}
-			
-			System.out.println( trackeo );
-			
-			
-			if(currentPrice <= minEsperado) {
-				this.esAptaParaComprar = true;
-			}
-			
-		}
-		
-    	
-    	
+        Double min = getMinimo(history);
+        JSONObject infoPiso = ConfigSetup.getInfoPiso(Long.valueOf(1L), this.pair);
+        Double margenMinimo = Double.valueOf(infoPiso.getDouble("margen"));
+        Double minEsperado = Double.valueOf(min.doubleValue() + min.doubleValue() * margenMinimo.doubleValue());
+        Double porcentajeABajarEsperado = Double.valueOf((minEsperado.doubleValue() - this.currentPrice) / this.currentPrice * 100.0D);
+        Double max = getMaximo(history);
+        Double porcentajeBajadaDesdeMaximo = Double.valueOf((this.currentPrice - max.doubleValue()) / max.doubleValue() * 100.0D);
+        String pairFormateado = agregarEspaciosAlFinal(this.pair, Integer.valueOf(11 - this.pair.length()));
+        String trackeo = String.valueOf(pairFormateado) + "Bajun " + String.format("%.2f", new Object[] { porcentajeBajadaDesdeMaximo }) + ", puede bajar un " + String.format("%.2f", new Object[] { porcentajeABajarEsperado });
+        List<Trade> trades = getTradesByPair(this.pair);
+        if (!CollectionUtil.isNullOrEmpty(trades))
+          for (Trade trade : trades) {
+            Double entryPrice = Double.valueOf(trade.getEntryPrice());
+            Long piso = trade.getPiso();
+            Double porcentajePiso = Double.valueOf((this.currentPrice - entryPrice.doubleValue()) / entryPrice.doubleValue() * 100.0D);
+            if (porcentajePiso.doubleValue() < 0.0D) {
+              trackeo = String.valueOf(trackeo) + " - Piso " + piso + " " + String.format("%.2f", new Object[] { porcentajePiso }) + "%";
+              continue;
+            } 
+            trackeo = String.valueOf(trackeo) + " - Piso " + piso + " +" + String.format("%.2f", new Object[] { porcentajePiso }) + "%";
+          }  
+        if (this.currentPrice <= minEsperado.doubleValue()) {
+          String fiatStr = ConfigSetup.getFiat();
+          if (fiatStr.equals("BUSD") || fiatStr.equals("USDT")) {
+            double fiatAmount = this.localAccount.getFiat();
+            if (fiatAmount > 10.0D) {
+              this.esAptaParaComprar = true;
+            } else {
+              List<String> monedasActivas = ConfigSetup.getMonedasActivas();
+              if (!monedasActivas.contains(this.coin))
+                trackeo = String.valueOf(trackeo) + " -- Quiere abrir pero no tiene fondos"; 
+              this.esAptaParaComprar = false;
+            } 
+          } else {
+            this.esAptaParaComprar = true;
+          } 
+        } 
+        System.out.println(trackeo);
     	
     }
     
@@ -290,7 +319,27 @@ public class Currency implements Closeable {
     }
     
     
+    private Double getMinimo(List<Candlestick> history) {
+        List<Candlestick> listaOrdenar = new ArrayList<>(history);
+        List<Double> closePrices = (List<Double>)listaOrdenar.stream().map(candle -> Double.valueOf(Double.parseDouble(candle.getClose()))).collect(Collectors.toList());
+        Double min = Double.valueOf(closePrices.stream().mapToDouble(Double::doubleValue).min().getAsDouble());
+        return min;
+     }
     
+    private Double getMaximo(List<Candlestick> history) {
+        List<Candlestick> listaOrdenar = new ArrayList<>(history);
+        List<Double> closePrices = (List<Double>)listaOrdenar.stream().map(candle -> Double.valueOf(Double.parseDouble(candle.getClose()))).collect(Collectors.toList());
+        Double max = Double.valueOf(closePrices.stream().mapToDouble(Double::doubleValue).max().getAsDouble());
+        return max;
+      }
+    
+    private String agregarEspaciosAlFinal(String parametro, Integer cantidadEspacios) {
+        if (parametro != null && parametro.length() > 0)
+          for (int i = 0; i < cantidadEspacios.intValue(); i++)
+            parametro = String.valueOf(parametro) + "-";  
+        return parametro;
+     }
+      
     
     
     private List<Double> getMinimos(List<Candlestick> history) throws Exception{
@@ -805,6 +854,30 @@ public class Currency implements Closeable {
         	long openTime = tradeUltimoPiso.getLong("opentime");
         	double high = Double.valueOf(tradeUltimoPiso.getString("high"));
         	long piso = tradeUltimoPiso.getLong("piso");
+        	
+        	trade = new Trade(this, entryPrice, amount, "");
+        	trade.setOpenTime(openTime);
+        	trade.setAmount(amount);
+        	trade.setHigh(high);
+        	trade.setPiso(piso);
+        }
+
+        
+        return trade;
+    }
+    
+    
+    private Trade getTradeByPairAndNroPiso(String pair, Long piso) {
+    	Trade trade = null;
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select * from trade where closetime is null and currency = ? and piso = ?", pair, piso);
+        JSONObject tradeUltimoPiso = TradeBotUtil.resultSetToJSON(rs);
+        
+        if(null != tradeUltimoPiso) {
+        	double entryPrice = Double.valueOf(tradeUltimoPiso.getString("entryprice"));
+        	double amount = Double.valueOf(tradeUltimoPiso.getString("amount"));
+        	long openTime = tradeUltimoPiso.getLong("opentime");
+        	double high = Double.valueOf(tradeUltimoPiso.getString("high"));
         	
         	trade = new Trade(this, entryPrice, amount, "");
         	trade.setOpenTime(openTime);

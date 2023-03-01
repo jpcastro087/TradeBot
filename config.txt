@@ -1,16 +1,16 @@
-unidad de tiempo:FOUR_HOURLY
-cantidad periodos:270
+unidad de tiempo:HOURLY
+cantidad periodos:168
 sumar porcentaje margen minimo esperado:0.0
 Percentage of money per trade:0.00086
 Take profit:0.1
 cantidad trades permitidos:20
+host database:192.168.100.34
 user database:postgres
 pass database:postgres
 escanear del listado currencies to track:true
-Currencies to track:PHB
+Currencies to track:MATIC, LDO, SOL
 Currencies to not track:USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
-FIAT:BUSD
-
+FIAT:USDT
 
 
 
@@ -31,4 +31,4 @@ porcentaje desde: -99
 porcentaje hasta: 99
 tiempo de reinicio:1h
 comprar de cualquier manera:false
-Trailing SL:0.06
+Trailing SL:9.99

@@ -45,7 +45,7 @@ public final class Simulation {
         for (String arg : ConfigSetup.getCurrencies()) {
             //The currency class contains all of the method calls that drive the activity of our bot
             try {
-                currencies.add(new Currency(arg));
+                currencies.add(new Currency(arg,localAccount));
             } catch (BinanceApiException e) {
                 System.out.println("---Could not add " + arg + ConfigSetup.getFiat());
                 System.out.println(e.getMessage());

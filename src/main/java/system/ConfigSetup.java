@@ -142,6 +142,35 @@ public class ConfigSetup {
 	}
 	
 	
+	public static List<JSONObject> getPisos(String pair) throws Exception {
+		JSONObject result = null;
+		JSONParser parser = new JSONParser();
+		List<JSONObject> pisosResult = new ArrayList<JSONObject>();
+		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
+		  for (Object o : pisos)
+		  {
+			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
+			  Long nroPiso = (Long)current.get("nro");
+			  String pairPiso = (String)current.get("pair");
+			  if(pair.equals(pairPiso)) {
+				  Double porcentajeBajada = (Double)current.get("porcentajeBajada");
+				  Double porcentajeDinero = (Double)current.get("porcentajeDinero");
+				  Double takeProfit = (Double)current.get("takeProfit");
+				  Double margen = (Double)current.get("margen");
+				  result = new JSONObject();
+				  result.put("nro",nroPiso);
+				  result.put("porcentajeBajada",porcentajeBajada);
+				  result.put("porcentajeDinero",porcentajeDinero);
+				  result.put("takeProfit",takeProfit);
+				  result.put("pair", pairPiso);
+				  result.put("margen", margen);
+				  pisosResult.add(result);
+			  }
+		  }
+		return pisosResult;
+	}
+	
+	
 
 	public static int getRequestLimit() {
 		return REQUEST_LIMIT;
