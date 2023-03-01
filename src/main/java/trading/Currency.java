@@ -92,7 +92,7 @@ public class Currency implements Closeable {
             System.out.println(String.valueOf(coin) + "Inicio Compra en Constructor Currency(String coin)");
             JSONObject infoPiso = ConfigSetup.getInfoPiso(Long.valueOf(1L), this.pair);
             Double porcentaje = Double.valueOf(infoPiso.getDouble("porcentajeDinero"));
-//            BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR");
+            BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR");
             System.out.println("+++++++++++Compró piso 1 porcentajeDinero:"+ porcentaje +" +++++++++++");
             System.out.println(String.valueOf(coin) + "Fin Compra en Constructor Venta en Currency(String coin)");
           } 
@@ -105,8 +105,7 @@ public class Currency implements Closeable {
     
     private void actualizarPisos(String pair) throws Exception {
     	
-    	
-    	
+    	JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?", String.format("%.9f", currentPrice), pair);
     	
     	List<JSONObject> pisos = ConfigSetup.getPisos(pair);
     	
@@ -254,7 +253,7 @@ public class Currency implements Closeable {
         Double max = getMaximo(history);
         Double porcentajeBajadaDesdeMaximo = Double.valueOf((this.currentPrice - max.doubleValue()) / max.doubleValue() * 100.0D);
         String pairFormateado = agregarEspaciosAlFinal(this.pair, Integer.valueOf(11 - this.pair.length()));
-        String trackeo = String.valueOf(pairFormateado) + "Bajun " + String.format("%.2f", new Object[] { porcentajeBajadaDesdeMaximo }) + ", puede bajar un " + String.format("%.2f", new Object[] { porcentajeABajarEsperado });
+        String trackeo = String.valueOf(pairFormateado) + "Bajó un " + String.format("%.2f", new Object[] { porcentajeBajadaDesdeMaximo }) + ", puede bajar un " + String.format("%.2f", new Object[] { porcentajeABajarEsperado });
         List<Trade> trades = getTradesByPair(this.pair);
         if (!CollectionUtil.isNullOrEmpty(trades))
           for (Trade trade : trades) {
