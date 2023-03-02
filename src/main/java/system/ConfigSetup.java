@@ -32,6 +32,7 @@ public class ConfigSetup {
 	private static int REQUEST_LIMIT;
     public static String USER_DATABASE;
     public static String PASS_DATABASE;
+    public static String HOST_DATABASE;
     private static Double PORCENTAJE_DESDE;
     private static Double PORCENTAJE_HASTA;
     public static boolean COMPRA_DE_CUALQUIER_MANERA;
@@ -277,6 +278,9 @@ public class ConfigSetup {
 					break;
 				case "pass database":
 					PASS_DATABASE = String.valueOf(arr[1]);
+					break;
+				case "host database":
+					HOST_DATABASE = String.valueOf(arr[1]);
 					break;
 				case "porcentaje desde":
 					PORCENTAJE_DESDE = Double.valueOf(arr[1]);
