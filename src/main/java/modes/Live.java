@@ -126,11 +126,13 @@ public final class Live {
 							double entrypriceDB = tradeDbJson.getDouble("entryprice");
 							long openTimeDB = tradeDbJson.getLong("opentime");
 							double high = tradeDbJson.getDouble("high");
+							double low = tradeDbJson.getDouble("low");
 							double amount = tradeDbJson.getDouble("amount");
 							trade = new Trade(balanceCurrency, entrypriceDB, amount,
 									"Trade opened due to: Added based on live account\t");
 							trade.setOpenTime(openTimeDB);
 							trade.setHigh(high);
+							trade.setLow(low);
 							balanceCurrency.setActiveTrade(trade);
 						}
 					} catch (Exception e) {

@@ -85,12 +85,13 @@ public class LocalAccount {
 
     public void openTrade(Trade trade) {
     	System.out.println("Inicio método LocalAccount.openTrade");
-        JDBCPostgres.create("insert into trade (opentime, entryprice, amount, total, high, currency, piso) values (?,?,?,?,?,?,?)",
+        JDBCPostgres.create("insert into trade (opentime, entryprice, amount, total, high, low, currency, piso) values (?,?,?,?,?,?,?,?)",
                 trade.getOpenTime(),
                 String.format("%.7f", trade.getEntryPrice()),
                 String.format("%.5f", trade.getAmount()),
                 String.format("%.7f", trade.getAmount() * trade.getEntryPrice()),
                 String.format("%.7f", trade.getHigh()),
+                String.format("%.7f", trade.getLow()),
                 trade.getCurrency().getPair(),
                 trade.getPiso());
         System.out.println("Fin método LocalAccount.openTrade");

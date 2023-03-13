@@ -6,6 +6,8 @@ import system.Formatter;
 public class Trade {
 	private double high;
 
+	private double low;
+
 	public static double TRAILING_SL;
 
 	public static double TAKE_PROFIT;
@@ -27,15 +29,16 @@ public class Trade {
 	private long closeTime;
 
 	private String explanation;
-	
+
 	private Long piso;
-	
+
 	private Double takeProfit;
 
 	public Trade(Currency currency, double entryPrice, double amount, String explanation) {
 		this.currency = currency;
 		this.entryPrice = entryPrice;
 		this.high = entryPrice;
+		this.low = entryPrice;
 		this.amount = amount;
 		this.explanation = explanation;
 		this.openTime = currency.getCurrentTime();
@@ -106,6 +109,14 @@ public class Trade {
 		this.high = high;
 	}
 
+	public double getLow() {
+		return low;
+	}
+
+	public void setLow(double low) {
+		this.low = low;
+	}
+
 	public double getProfit() {
 		if (this.closePrice == -1.0D)
 			return (this.currency.getPrice() - this.entryPrice) / this.entryPrice;
@@ -127,7 +138,7 @@ public class Trade {
 	public void setPiso(Long piso) {
 		this.piso = piso;
 	}
-	
+
 	public Double getTakeProfit() {
 		return takeProfit;
 	}
@@ -137,24 +148,30 @@ public class Trade {
 	}
 
 	public void update(double newPrice) {
-		
+
 		if (newPrice > this.high) {
 			this.high = newPrice;
 			JDBCPostgres.update("update trade set high = ? where opentime = ?", new Object[] {
 					String.format("%.7f", new Object[] { Double.valueOf(this.high) }), Long.valueOf(getOpenTime()) });
 		}
 		
+		if (newPrice < this.low) {
+			this.low = newPrice;
+			JDBCPostgres.update("update trade set low = ? where opentime = ?", new Object[] {
+					String.format("%.7f", new Object[] { Double.valueOf(this.low) }), Long.valueOf(getOpenTime()) });
+		}
+
 		if (getProfit() > getTakeProfit()) {
 			this.explanation = String.valueOf(this.explanation) + "Closed due to: Take profit";
 			BuySell.close(this);
-			System.out.println("-------------Vendió a "+getTakeProfit()+"% -------------");
+			System.out.println("-------------Vendió a " + getTakeProfit() + "% -------------");
 			return;
 		}
 
 	}
 
 	public String toString() {
-		return   this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + "\n" + "open: "
+		return this.currency.getPair() + " " + Formatter.formatDecimal(this.amount) + "\n" + "open: "
 				+ Formatter.formatDate(this.openTime) + " at " + this.entryPrice + "\n"
 				+ (isClosed() ? ("close: " + Formatter.formatDate(this.closeTime) + " at " + this.closePrice)
 						: ("current price: " + this.currency.getPrice()))

@@ -36,12 +36,12 @@ public class Test {
 	
 	public static void main(String[] args) throws ParseException {
 		
-		System.out.println(ANSI_RED + "This text is red!" + ANSI_RESET);
-		
-		
-		CandlestickInterval a = CandlestickInterval.valueOf("FOUR_HOURLY");
-		
-		System.out.println(a);
+//		System.out.println(ANSI_RED + "This text is red!" + ANSI_RESET);
+//		
+//		
+//		CandlestickInterval a = CandlestickInterval.valueOf("FOUR_HOURLY");
+//		
+//		System.out.println(a);
 		
 		
 //		System.out.println(String.format("%.7f", 0.00050499));
@@ -77,6 +77,8 @@ public class Test {
 //		Number d = PERCENT_FORMAT.parse("1.33%");
 //		Double ss = d.doubleValue();
 //		System.out.println(ss * 100);
+		
+		
 		
 		
 	}
