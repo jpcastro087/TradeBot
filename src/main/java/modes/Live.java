@@ -129,7 +129,7 @@ public final class Live {
 							double low = tradeDbJson.getDouble("low");
 							double amount = tradeDbJson.getDouble("amount");
 							trade = new Trade(balanceCurrency, entrypriceDB, amount,
-									"Trade opened due to: Added based on live account\t");
+									"Trade opened due to: Added based on live account\t", openTimeDB);
 							trade.setOpenTime(openTimeDB);
 							trade.setHigh(high);
 							trade.setLow(low);

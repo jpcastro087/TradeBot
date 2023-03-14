@@ -34,14 +34,14 @@ public class Trade {
 
 	private Double takeProfit;
 
-	public Trade(Currency currency, double entryPrice, double amount, String explanation) {
+	public Trade(Currency currency, double entryPrice, double amount, String explanation, long openTime) {
 		this.currency = currency;
 		this.entryPrice = entryPrice;
 		this.high = entryPrice;
 		this.low = entryPrice;
 		this.amount = amount;
 		this.explanation = explanation;
-		this.openTime = currency.getCurrentTime();
+		this.openTime = openTime;
 		this.closePrice = -1.0D;
 	}
 

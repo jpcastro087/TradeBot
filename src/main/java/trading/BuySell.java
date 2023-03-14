@@ -6,6 +6,7 @@ import static com.binance.api.client.domain.account.NewOrder.marketSell;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
+import java.util.Date;
 import java.util.Optional;
 
 import org.json.JSONObject;
@@ -50,7 +51,7 @@ public class BuySell {
     }
 
     //Used by strategy
-    public static void open(Currency currency, Double porcentajeDinero, Long ultimoPiso, String explanation) {
+    public static void open(Currency currency, Double porcentajeDinero, Long ultimoPiso, String explanation, long openTime) {
     	System.out.println("Inicio método BuySell.open");
     	String pair = currency.getPair();
         if (!enoughFunds(pair, porcentajeDinero)) {
@@ -87,12 +88,12 @@ public class BuySell {
                     + ", at a price of " + Formatter.formatDecimal(fillsPrice) + " " + ConfigSetup.getFiat());
             fiatCost = fillsPrice;
             amount = fillsQty;
-            trade = new Trade(currency, fillsPrice / fillsQty, amount, explanation);
+            trade = new Trade(currency, fillsPrice / fillsQty, amount, explanation, openTime);
             System.out.println("Opened trade at an avg open of " + Formatter.formatDecimal(trade.getEntryPrice()) + " ("
                     + Formatter.formatPercent((trade.getEntryPrice() - currentPrice) / trade.getEntryPrice())
                     + " from current)");
         } else {
-            trade = new Trade(currency, currentPrice, amount, explanation);
+            trade = new Trade(currency, currentPrice, amount, explanation, openTime);
         }
         
         currency.setActiveTrade(trade);
@@ -119,7 +120,7 @@ public class BuySell {
         	closeTrade(trade);
         } else {
             trade.setClosePrice(trade.getCurrency().getPrice());
-            trade.setCloseTime(trade.getCurrency().getCurrentTime());
+            trade.setCloseTime(new Date().getTime());
             localAccount.removeFromWallet(trade.getCurrency(), trade.getAmount());
             localAccount.addToFiat(trade.getAmount() * trade.getClosePrice());
         }

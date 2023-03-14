@@ -1,26 +1,13 @@
 package trading;
 
-import java.awt.Button;
 import java.io.Closeable;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.math.RoundingMode;
 import java.sql.ResultSet;
-import java.text.DecimalFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -39,9 +26,7 @@ import indicators.DBB;
 import indicators.Indicator;
 import indicators.MACD;
 import indicators.RSI;
-import modes.Live;
 import system.ConfigSetup;
-import system.Formatter;
 import system.Mode;
 import utils.CollectionUtil;
 import utils.TradeBotUtil;
@@ -56,7 +41,6 @@ public class Currency implements Closeable {
     private final AtomicBoolean currentlyCalculating = new AtomicBoolean(false);
 
     private double currentPrice;
-    private long currentTime;
 
     //Backtesting data
     private final StringBuilder log = new StringBuilder();
@@ -82,7 +66,6 @@ public class Currency implements Closeable {
         this.indicators.add(new RSI(closingPrices, 0));
         this.indicators.add(new MACD(closingPrices, 0, 0, 0));
         this.indicators.add(new DBB(closingPrices, 0));
-        this.currentTime = System.currentTimeMillis();
         this.candleTime = ((Candlestick)history.get(history.size() - 1)).getCloseTime().longValue();
         this.currentPrice = Double.parseDouble(((Candlestick)history.get(history.size() - 1)).getClose());
         changeEsAptaParaComprar(history);
@@ -92,7 +75,7 @@ public class Currency implements Closeable {
             System.out.println(String.valueOf(coin) + "Inicio Compra en Constructor Currency(String coin)");
             JSONObject infoPiso = ConfigSetup.getInfoPiso(Long.valueOf(1L), this.pair);
             Double porcentaje = Double.valueOf(infoPiso.getDouble("porcentajeDinero"));
-            BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR");
+            BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR", new Date().getTime());
             System.out.println("+++++++++++Compró piso 1 porcentajeDinero:"+ porcentaje +" +++++++++++");
             System.out.println(String.valueOf(coin) + "Fin Compra en Constructor Venta en Currency(String coin)");
           } 
@@ -122,7 +105,8 @@ public class Currency implements Closeable {
         		            	Double porcentajeDinero = siguientePiso.getDouble("porcentajeDinero");
         		            	Long nroPisoComprado = siguientePiso.getLong("nro");
         						System.out.println("+++++++++++Compró piso "+ nroPisoComprado + " porcentajeBajada:"+ porcentajeBajadaPisoSiguiente + " porcentajeDinero:"+ porcentajeDinero +" +++++++++++");
-        	            		BuySell.open(this, porcentajeDinero, nroPisoComprado, "Abierto por ultimo piso");
+        	            		BuySell.open(this, porcentajeDinero, nroPisoComprado, "Abierto por ultimo piso", new Date().getTime());
+        	            		Thread.sleep(3000);
         					}
         				}
     				}
@@ -728,12 +712,11 @@ public class Currency implements Closeable {
     	        }
 
     	        currentPrice = bean.getPrice();
-    	        currentTime = bean.getTimestamp();
 
     	        if (bean.isClosing()) {
     	            indicators.forEach(indicator -> indicator.update(bean.getPrice()));
     	            if (Mode.get().equals(Mode.BACKTESTING)) {
-    	                appendLogLine(system.Formatter.formatDate(currentTime) + "  ");
+    	                appendLogLine(system.Formatter.formatDate(new Date().getTime()) + "  ");
     	            }
     	        }
 
@@ -761,7 +744,7 @@ public class Currency implements Closeable {
             	            	Double porcentajeDinero = nextInfoPiso.getDouble("porcentajeDinero");
             	            	
             	            	if( porcentajeContraUltimoPiso <= porcentajeBajada ) {
-            	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso");
+            	            		BuySell.open(this, porcentajeDinero, tradeUltimoPiso.getPiso()+1, "Abierto por ultimo piso", new Date().getTime());
             	            	}
         	            	}
     	            	}
@@ -802,7 +785,7 @@ public class Currency implements Closeable {
         	double low = Double.valueOf(jsonObject.getString("low"));
         	long piso = jsonObject.getLong("piso");
         	
-        	Trade trade = new Trade(this, entryPrice, amount, "");
+        	Trade trade = new Trade(this, entryPrice, amount, "", openTime);
         	trade.setOpenTime(openTime);
         	trade.setAmount(amount);
         	trade.setHigh(high);
@@ -829,7 +812,7 @@ public class Currency implements Closeable {
         	double low = Double.valueOf(tradeUltimoPiso.getString("low"));
         	long piso = tradeUltimoPiso.getLong("piso");
         	
-        	trade = new Trade(this, entryPrice, amount, "");
+        	trade = new Trade(this, entryPrice, amount, "", openTime);
         	trade.setOpenTime(openTime);
         	trade.setAmount(amount);
         	trade.setHigh(high);
@@ -855,7 +838,7 @@ public class Currency implements Closeable {
         	double high = Double.valueOf(tradeUltimoPiso.getString("high"));
         	double low = Double.valueOf(tradeUltimoPiso.getString("low"));
         	
-        	trade = new Trade(this, entryPrice, amount, "");
+        	trade = new Trade(this, entryPrice, amount, "", openTime);
         	trade.setOpenTime(openTime);
         	trade.setAmount(amount);
         	trade.setHigh(high);
@@ -892,10 +875,6 @@ public class Currency implements Closeable {
         return currentPrice;
     }
 
-    public long getCurrentTime() {
-        return currentTime;
-    }
-
     public boolean hasActiveTrade() {
         return activeTrade != null;
     }
@@ -913,74 +892,6 @@ public class Currency implements Closeable {
         log.append(s).append("\n");
     }
 
-    public void log(String path) {
-        List<Trade> tradeHistory = new ArrayList<>(BuySell.getAccount().getTradeHistory());
-        try (FileWriter writer = new FileWriter(path)) {
-            writer.write("Test ended " + system.Formatter.formatDate(LocalDateTime.now()) + " \n");
-            writer.write("\n\nCONFIG:\n");
-            writer.write(ConfigSetup.getSetup());
-            writer.write("\n\nMarket performance: " + system.Formatter.formatPercent((currentPrice - firstBean.getPrice()) / firstBean.getPrice()));
-            if (!tradeHistory.isEmpty()) {
-                tradeHistory.sort(Comparator.comparingDouble(Trade::getProfit));
-                double maxLoss = tradeHistory.get(0).getProfit();
-                double maxGain = tradeHistory.get(tradeHistory.size() - 1).getProfit();
-                int lossTrades = 0;
-                double lossSum = 0;
-                int gainTrades = 0;
-                double gainSum = 0;
-                long tradeDurs = 0;
-                for (Trade trade : tradeHistory) {
-                    double profit = trade.getProfit();
-                    if (profit < 0) {
-                        lossTrades += 1;
-                        lossSum += profit;
-                    } else if (profit > 0) {
-                        gainTrades += 1;
-                        gainSum += profit;
-                    }
-                    tradeDurs += trade.getDuration();
-                }
-
-                double tradePerWeek = 604800000.0 / (((double) currentTime - firstBean.getTimestamp()) / tradeHistory.size());
-
-                writer.write("\nBot performance: " + system.Formatter.formatPercent(BuySell.getAccount().getProfit()) + "\n\n");
-                writer.write(BuySell.getAccount().getTradeHistory().size() + " closed trades"
-                        + " (" + system.Formatter.formatDecimal(tradePerWeek) + " trades per week) with an average holding length of "
-                        + system.Formatter.formatDuration(Duration.of(tradeDurs / tradeHistory.size(), ChronoUnit.MILLIS)) + " hours");
-                if (lossTrades != 0) {
-                    writer.write("\nLoss trades:\n");
-                    writer.write(lossTrades + " trades, " + system.Formatter.formatPercent(lossSum / (double) lossTrades) + " average, " + system.Formatter.formatPercent(maxLoss) + " max");
-                }
-                if (gainTrades != 0) {
-                    writer.write("\nProfitable trades:\n");
-                    writer.write(gainTrades + " trades, " + system.Formatter.formatPercent(gainSum / (double) gainTrades) + " average, " + system.Formatter.formatPercent(maxGain) + " max");
-                }
-                writer.write("\n\nClosed trades (least to most profitable):\n");
-                for (Trade trade : tradeHistory) {
-                    writer.write(trade.toString() + "\n");
-                }
-            } else {
-                writer.write("\n(Not trades made)\n");
-                System.out.println("---No trades made in the time period!");
-            }
-            writer.write("\n\nFULL LOG:\n\n");
-            writer.write(log.toString());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        System.out.println("---Log file generated at " + new File(path).getAbsolutePath());
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder s = new StringBuilder(pair + " price: " + currentPrice);
-        if (currentTime == candleTime)
-            indicators.forEach(indicator -> s.append(", ").append(indicator.getClass().getSimpleName()).append(": ").append(system.Formatter.formatDecimal(indicator.get())));
-        else
-            indicators.forEach(indicator -> s.append(", ").append(indicator.getClass().getSimpleName()).append(": ").append(Formatter.formatDecimal(indicator.getTemp(currentPrice))));
-        s.append(", hasActive: ").append(hasActiveTrade()).append(")");
-        return s.toString();
-    }
 
     @Override
     public int hashCode() {
