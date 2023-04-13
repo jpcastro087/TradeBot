@@ -88,7 +88,7 @@ public class BuySell {
                     + ", at a price of " + Formatter.formatDecimal(fillsPrice) + " " + ConfigSetup.getFiat());
             fiatCost = fillsPrice;
             amount = fillsQty;
-            trade = new Trade(currency, fillsPrice / fillsQty, amount, explanation, openTime);
+            trade = new Trade(currency, currency.getPrice(), amount, explanation, openTime);
             System.out.println("Opened trade at an avg open of " + Formatter.formatDecimal(trade.getEntryPrice()) + " ("
                     + Formatter.formatPercent((trade.getEntryPrice() - currentPrice) / trade.getEntryPrice())
                     + " from current)");

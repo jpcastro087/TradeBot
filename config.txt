@@ -1,5 +1,5 @@
-unidad de tiempo:FOUR_HOURLY
-cantidad periodos:180
+unidad de tiempo:HALF_HOURLY
+cantidad periodos:84
 sumar porcentaje margen minimo esperado:0.0
 Percentage of money per trade:0.00086
 Take profit:0.1
@@ -8,7 +8,7 @@ host database:192.168.100.34
 user database:juan
 pass database:123
 escanear del listado currencies to track:true
-Currencies to track:BTC
+Currencies to track:BTC, ADA, XMR, SOL, ETH, BNB, VET
 Currencies to not track:USTC, EUR, USDC, USDT, TUSD, USDP, GBP, AUD
 FIAT:BUSD
 

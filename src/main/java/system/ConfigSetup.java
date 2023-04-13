@@ -116,59 +116,26 @@ public class ConfigSetup {
 	
 	
 	public static JSONObject getInfoPiso(Long piso, String pair) throws Exception {
-		JSONObject result = null;
-		JSONParser parser = new JSONParser();
-		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
-		  for (Object o : pisos)
-		  {
-			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
-			  Long nroPiso = (Long)current.get("nro");
-			  String pairPiso = (String)current.get("pair");
-			  if(nroPiso.equals(piso) && pair.equals(pairPiso)) {
-				  Double porcentajeBajada = (Double)current.get("porcentajeBajada");
-				  Double porcentajeDinero = (Double)current.get("porcentajeDinero");
-				  Double takeProfit = (Double)current.get("takeProfit");
-				  Double margen = (Double)current.get("margen");
-				  result = new JSONObject();
-				  result.put("nro",piso);
-				  result.put("porcentajeBajada",porcentajeBajada);
-				  result.put("porcentajeDinero",porcentajeDinero);
-				  result.put("takeProfit",takeProfit);
-				  result.put("pair", pairPiso);
-				  result.put("margen", margen);
-				  break;
-			  }
-		  }
-		return result;
+		  
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select * from pisos where nro = ? and pair = ?", piso, pair);
+        JSONObject tradeUltimoPiso = TradeBotUtil.resultSetToJSON(rs);
+		  
+		return tradeUltimoPiso;
 	}
 	
 	
 	public static List<JSONObject> getPisos(String pair) throws Exception {
-		JSONObject result = null;
-		JSONParser parser = new JSONParser();
-		List<JSONObject> pisosResult = new ArrayList<JSONObject>();
-		org.json.simple.JSONArray pisos = (org.json.simple.JSONArray) parser.parse(new FileReader("pisos.json"));
-		  for (Object o : pisos)
-		  {
-			  org.json.simple.JSONObject current = (org.json.simple.JSONObject) o;
-			  Long nroPiso = (Long)current.get("nro");
-			  String pairPiso = (String)current.get("pair");
-			  if(pair.equals(pairPiso)) {
-				  Double porcentajeBajada = (Double)current.get("porcentajeBajada");
-				  Double porcentajeDinero = (Double)current.get("porcentajeDinero");
-				  Double takeProfit = (Double)current.get("takeProfit");
-				  Double margen = (Double)current.get("margen");
-				  result = new JSONObject();
-				  result.put("nro",nroPiso);
-				  result.put("porcentajeBajada",porcentajeBajada);
-				  result.put("porcentajeDinero",porcentajeDinero);
-				  result.put("takeProfit",takeProfit);
-				  result.put("pair", pairPiso);
-				  result.put("margen", margen);
-				  pisosResult.add(result);
-			  }
-		  }
+		
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select * from pisos where pair = ?", pair);
+        List<JSONObject> pisosResult = TradeBotUtil.resultSetToListJSON(rs);
+		
 		return pisosResult;
+	}
+	
+	public static void updatePorcentajeEntradaPiso(Long piso, String pair, double porcentajeEntrada) {
+		JDBCPostgres.update("update pisos set porcentajebajada = ? where nro = ? and pair = ?", porcentajeEntrada, piso, pair);
 	}
 	
 	

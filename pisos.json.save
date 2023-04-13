@@ -1,0 +1,22 @@
+
+[
+        {"nro":1, "porcentajeBajada": 0.000, "porcentajeDinero":0.005, "takeProfit":0.002, "margen":0.99, "pair":"BTCBUSD"},
+        {"nro":2, "porcentajeBajada": 0.000, "porcentajeDinero":0.005, "takeProfit":0.002,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":3, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.06,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":4, "porcentajeBajada":-0.045, "porcentajeDinero":0.000, "takeProfit":0.07,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":5, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.07,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":6, "porcentajeBajada":-0.045, "porcentajeDinero":0.000, "takeProfit":0.06,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":7, "porcentajeBajada":-0.042, "porcentajeDinero":0.000, "takeProfit":0.08,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":8, "porcentajeBajada":-0.042, "porcentajeDinero":0.000, "takeProfit":0.08,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":9, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.09,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":10,"porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.09,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":11,"porcentajeBajada":-0.060, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":12,"porcentajeBajada":-0.005, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":13,"porcentajeBajada": 0.004, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":14,"porcentajeBajada":-0.003, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":15,"porcentajeBajada":-0.002, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":16,"porcentajeBajada":-0.001, "porcentajeDinero":0.000, "takeProfit":0.10,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":17,"porcentajeBajada":-0.005, "porcentajeDinero":0.000, "takeProfit":0.05,  "margen":0.0, "pair":"BTCBUSD"},
+        {"nro":18,"porcentajeBajada":-0.005, "porcentajeDin
+
+]

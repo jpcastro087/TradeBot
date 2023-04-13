@@ -1,22 +1,38 @@
-
 [
-        {"nro":1, "porcentajeBajada": 0.000, "porcentajeDinero":0.005, "takeProfit":0.002, "margen":0.99, "pair":"BTCBUSD"},
-        {"nro":2, "porcentajeBajada": 0.000, "porcentajeDinero":0.005, "takeProfit":0.002,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":3, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.06,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":4, "porcentajeBajada":-0.045, "porcentajeDinero":0.000, "takeProfit":0.07,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":5, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.07,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":6, "porcentajeBajada":-0.045, "porcentajeDinero":0.000, "takeProfit":0.06,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":7, "porcentajeBajada":-0.042, "porcentajeDinero":0.000, "takeProfit":0.08,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":8, "porcentajeBajada":-0.042, "porcentajeDinero":0.000, "takeProfit":0.08,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":9, "porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.09,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":10,"porcentajeBajada":-0.040, "porcentajeDinero":0.000, "takeProfit":0.09,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":11,"porcentajeBajada":-0.060, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":12,"porcentajeBajada":-0.005, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":13,"porcentajeBajada": 0.004, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":14,"porcentajeBajada":-0.003, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":15,"porcentajeBajada":-0.002, "porcentajeDinero":0.000, "takeProfit":0.01,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":16,"porcentajeBajada":-0.001, "porcentajeDinero":0.000, "takeProfit":0.10,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":17,"porcentajeBajada":-0.005, "porcentajeDinero":0.000, "takeProfit":0.05,  "margen":0.0, "pair":"BTCBUSD"},
-        {"nro":18,"porcentajeBajada":-0.005, "porcentajeDinero":0.000, "takeProfit":0.18,  "margen":0.0, "pair":"BTCBUSD"},
+{"nro":1, "porcentajeBajada": -0.0100, "porcentajeDinero":0.0500, "takeProfit":0.0150, "margen":0.00, "pair":"BTCBUSD"},
+{"nro":2, "porcentajeBajada": -0.0200, "porcentajeDinero":0.0500, "takeProfit":0.9999, "margen":0.00, "pair":"BTCBUSD"},
+{"nro":3, "porcentajeBajada": -0.0600, "porcentajeDinero":0.0400, "takeProfit":0.9999, "margen":0.00, "pair":"BTCBUSD"},
+{"nro":4, "porcentajeBajada": -0.0600, "porcentajeDinero":0.0600, "takeProfit":0.9999, "margen":0.00, "pair":"BTCBUSD"},
+
+{"nro":1, "porcentajeBajada": -0.0050, "porcentajeDinero":0.0500, "takeProfit":0.0500, "margen":0.00, "pair":"ADABUSD"},
+{"nro":2, "porcentajeBajada": -0.0050, "porcentajeDinero":0.0500, "takeProfit":0.0100, "margen":0.00, "pair":"ADABUSD"},
+{"nro":3, "porcentajeBajada": -0.0050, "porcentajeDinero":0.0500, "takeProfit":0.9999, "margen":0.00, "pair":"ADABUSD"},
+{"nro":4, "porcentajeBajada": -0.0700, "porcentajeDinero":0.0500, "takeProfit":0.9999, "margen":0.00, "pair":"ADABUSD"},
+
+{"nro":1, "porcentajeBajada": -0.0125, "porcentajeDinero":0.0500, "takeProfit":0.0100, "margen":0.00, "pair":"XMRBUSD"},
+{"nro":2, "porcentajeBajada": -0.0125, "porcentajeDinero":0.0500, "takeProfit":0.0200, "margen":0.00, "pair":"XMRBUSD"},
+
+{"nro":1, "porcentajeBajada": -0.0100, "porcentajeDinero":0.0500, "takeProfit":0.0030, "margen":0.00, "pair":"ETHBUSD"},
+{"nro":2, "porcentajeBajada": -0.0600, "porcentajeDinero":0.0500, "takeProfit":0.0060, "margen":0.00, "pair":"ETHBUSD"},
+{"nro":3, "porcentajeBajada": -0.0300, "porcentajeDinero":0.0500, "takeProfit":0.9999, "margen":0.00, "pair":"ETHBUSD"},
+{"nro":4, "porcentajeBajada": -0.0300, "porcentajeDinero":0.0500, "takeProfit":0.9999, "margen":0.00, "pair":"ETHBUSD"},
+
+{"nro":1, "porcentajeBajada": -0.0400, "porcentajeDinero":0.0500, "takeProfit":0.1000, "margen":0.00, "pair":"SOLBUSD"},
+
+{"nro":1, "porcentajeBajada": -0.0000, "porcentajeDinero":0.0250, "takeProfit":0.0050, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":2, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.9999, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":3, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.0025, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":4, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.0050, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":5, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.9999, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":6, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.0075, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":7, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.9999, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":8, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.0010, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":9, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.9999, "margen":0.00, "pair":"BNBBUSD"},
+{"nro":10, "porcentajeBajada": -0.0025, "porcentajeDinero":0.0250, "takeProfit":0.9999, "margen":0.00, "pair":"BNBBUSD"},
+
+
+
+{"nro":1, "porcentajeBajada": -0.0000, "porcentajeDinero":0.0839, "takeProfit":0.2000, "margen":0.00, "pair":"VETBUSD"},
+
 
 ]
