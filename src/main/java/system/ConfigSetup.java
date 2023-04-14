@@ -73,7 +73,7 @@ public class ConfigSetup {
 	
 	
 	
-	private static List<String> getTodasLasMonedas(){
+	public static List<String> getTodasLasMonedas(){
 		List<TickerStatistics> pricesStatistics = CurrentAPI.get().getAll24HrPriceStatistics();
 		List<String> currencies = new ArrayList<String>();
 		for (int i = 0; i < pricesStatistics.size(); i++) {
@@ -83,17 +83,11 @@ public class ConfigSetup {
 			if (symbol.endsWith(fiat) && ( !symbol.contains("UP") && !symbol.contains("DOWN") )) {
 				Double porcentaje = Double.valueOf(t.getPriceChangePercent());
 				if ( PORCENTAJE_DESDE <= porcentaje && PORCENTAJE_HASTA >= porcentaje) {
-					currencies.add(symbol.substring(0, symbol.length() - fiat.length()));
+					currencies.add(symbol);
 				}
 			}
 		}
 		
-		currencies.removeAll(currenciesNotTrack);
-		List<String> monedasActivas = getMonedasActivas();
-		currencies.removeAll(monedasActivas);
-		currencies.addAll(monedasActivas);
-		Collections.reverse(currencies);
-
 		return currencies;
 	}
 	

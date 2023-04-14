@@ -6,7 +6,10 @@ import java.nio.file.Files;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
@@ -17,6 +20,8 @@ import org.json.JSONObject;
 import com.binance.api.client.domain.account.AssetBalance;
 import com.binance.api.client.domain.general.FilterType;
 import com.binance.api.client.domain.general.SymbolFilter;
+import com.binance.api.client.domain.market.Candlestick;
+import com.binance.api.client.domain.market.CandlestickInterval;
 
 import dbconnection.JDBCPostgres;
 import system.ConfigSetup;
@@ -26,6 +31,7 @@ import trading.Currency;
 import trading.CurrentAPI;
 import trading.LocalAccount;
 import trading.Trade;
+import utils.CollectionUtil;
 import utils.TradeBotUtil;
 
 public final class Live {
@@ -56,8 +62,9 @@ public final class Live {
 		}
 	}
 
-	public static void init(String... monedasParam) throws InterruptedException {
-
+	public static void init(String... monedasParam) throws Exception {
+		
+		
 		initializing = true;
 		boolean fileFailed = true;
 		if (credentialsFile.exists()) {
@@ -98,65 +105,116 @@ public final class Live {
 		System.out.println(String.valueOf(localAccount.getMakerComission()) + " Maker commission.");
 		System.out.println(String.valueOf(localAccount.getBuyerComission()) + " Buyer commission");
 		System.out.println(String.valueOf(localAccount.getTakerComission()) + " Taker comission");
-		BuySell.setAccount(localAccount);
-		String current = "";
-		List<String> currenciesSetup = null;
-		if (monedasParam != null && monedasParam.length > 0) {
-			currenciesSetup = new ArrayList<String>(Arrays.asList(monedasParam));
-		} else {
-			currenciesSetup = ConfigSetup.getCurrencies();
-		}
-		List<String> monedasActivas = ConfigSetup.getMonedasActivas();
-		monedasActivas.addAll(currenciesSetup);
-		List<String> monedasActivasResult = monedasActivas.stream().distinct().collect(Collectors.toList());
-		while (true) {
-			try {
-				long start = System.currentTimeMillis();
-				for (String arg : monedasActivasResult) {
-					try {
-						current = arg;
-						Currency balanceCurrency = new Currency(current, localAccount);
-						if (!balanceCurrency.esAptaParaComprar() && !monedasActivasResult.contains(current))
-							continue;
-						ResultSet rs = JDBCPostgres.getResultSet(
-								"select * from trade where closetime is null and currency = ? and piso = 1", balanceCurrency.getPair());
-						JSONObject tradeDbJson = TradeBotUtil.resultSetToJSON(rs);
-						Trade trade = null;
-						if (tradeDbJson != null) {
-							double entrypriceDB = tradeDbJson.getDouble("entryprice");
-							long openTimeDB = tradeDbJson.getLong("opentime");
-							double high = tradeDbJson.getDouble("high");
-							double low = tradeDbJson.getDouble("low");
-							double amount = tradeDbJson.getDouble("amount");
-							trade = new Trade(balanceCurrency, entrypriceDB, amount,
-									"Trade opened due to: Added based on live account\t", openTimeDB);
-							trade.setOpenTime(openTimeDB);
-							trade.setHigh(high);
-							trade.setLow(low);
-							balanceCurrency.setActiveTrade(trade);
-						}
-					} catch (Exception e) {
-						System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-						e.printStackTrace();
-						if (e.getMessage().contains("current limit is 1200 request weight per 1 MINUTE")) {
-							System.out.println("Esperando 1 Minuto...");
-							Thread.sleep(30000L);
-						}
-					}
-				}
-				localAccount.setStartingValue(localAccount.getTotalValue());
-				long end = System.currentTimeMillis();
-				float sec = (float) (end - start) / 1000.0F;
-				System.out.println("tard" + sec + " seconds");
-			} catch (Exception e) {
-				System.out.println("---Could not add " + current + ConfigSetup.getFiat());
-				System.out.println(e.getMessage());
+		
+		
+		
+		List<AssetBalance> a = CurrentAPI.get().getAccount().getBalances();
+		
+		System.out.println(a);
+		
+		List<String> pairs = ConfigSetup.getTodasLasMonedas();
+		
+		for (String pair : pairs) {
+			List<Candlestick> history = getHistoryPeriodosAtras(pair, CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
+			
+			if(CollectionUtil.isNullOrEmpty(history))continue;
+			
+			System.out.println(pair);
+			
+			Candlestick velaMayorVolumen = getVelaMayorVolumen(history);
+			if(null == velaMayorVolumen)continue;
+			double precioVelaMayorVolumen = Double.valueOf(velaMayorVolumen.getHigh());
+			Candlestick velaMenorVolumen = getVelaMenorVolumen(history, precioVelaMayorVolumen);
+			
+			if(null != velaMayorVolumen && null != velaMenorVolumen) {
+				System.out.println("Moneda: "+pair
+						+"\n Precio Mayor Volumen: "+ velaMayorVolumen.getLow() 
+						+"\n Precio Menor Volumen: " + velaMenorVolumen.getHigh()
+						+"\n Precio Actual: "+ history.get(history.size()-1).getClose());
 			}
-			initializing = false;
-			Thread.sleep(2000L);
+
+			
+			
 		}
+		
+
+		 
 
 	}
+	
+	
+    private static Candlestick getVelaMayorVolumen(List<Candlestick> history) {
+    	Candlestick velaMayorVolumen = null;
+    	if(!CollectionUtil.isNullOrEmpty(history)) {
+    		double mayor = Double.valueOf(history.get(0).getVolume());
+    		for (Candlestick candlestick : history) {
+				if(Double.valueOf(candlestick.getVolume()) <= mayor) {
+					mayor = Double.valueOf(candlestick.getVolume());
+					velaMayorVolumen = candlestick;
+				}
+			}
+    	}
+
+        return velaMayorVolumen;
+    }
+    
+    private static Candlestick getVelaMenorVolumen(List<Candlestick> history, double precioVelaMayorVolumen) {
+    	Candlestick velaMenorVolumen = null;
+    	if(!CollectionUtil.isNullOrEmpty(history)) {
+    		double menor = Double.valueOf(history.get(0).getVolume());
+    		for (Candlestick candlestick : history) {
+    			double precioVelaActual = Double.valueOf(candlestick.getHigh());
+				if(Double.valueOf(candlestick.getVolume()) >= menor && precioVelaActual >= precioVelaMayorVolumen) {
+					menor = Double.valueOf(candlestick.getVolume());
+					velaMenorVolumen = candlestick;
+				}
+			}
+    	}
+
+        return velaMenorVolumen;
+    }
+	
+	
+	private static List<Candlestick> getHistoryPeriodosAtras(String par, CandlestickInterval intervalo, Integer cantidadPeriodos) throws Exception{
+
+    	Calendar cal = Calendar.getInstance();
+    	cal.setTime(new Date());
+    	
+    	switch (intervalo) {
+		case ONE_MINUTE:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos);
+			break;
+		case FIVE_MINUTES:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 5 );
+			break;
+		case FIFTEEN_MINUTES:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 15);
+			break;
+		case HALF_HOURLY:
+	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 30);
+			break;
+		case HOURLY:
+	    	cal.add(Calendar.HOUR, -cantidadPeriodos);
+			break;
+		case FOUR_HOURLY:
+	    	cal.add(Calendar.HOUR, -cantidadPeriodos * 4);
+			break;
+		case DAILY:
+	    	cal.add(Calendar.DATE, -cantidadPeriodos);
+			break;
+		default:
+			throw new Exception("No existe el periodo, cargalo y no rompas las bolas");
+		}
+    	
+    	Date dateBefore1000Periodos = cal.getTime();
+    	long fechaDesde =  dateBefore1000Periodos.getTime();
+    	long fechaHasta =  new Date().getTime();
+    	
+    	
+    	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(par, intervalo, cantidadPeriodos, fechaDesde, fechaHasta);
+    	return history;
+    	
+    }
 
 	public static void refreshWalletAndTrades() {
 		for (AssetBalance balance : localAccount.getRealAccount().getBalances()) {

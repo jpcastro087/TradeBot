@@ -1,5 +1,5 @@
 unidad de tiempo:HALF_HOURLY
-cantidad periodos:84
+cantidad periodos:336
 sumar porcentaje margen minimo esperado:0.0
 Percentage of money per trade:0.00086
 Take profit:0.1

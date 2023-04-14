@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,18 +71,6 @@ public class Currency implements Closeable {
         this.candleTime = ((Candlestick)history.get(history.size() - 1)).getCloseTime().longValue();
         this.currentPrice = Double.parseDouble(((Candlestick)history.get(history.size() - 1)).getClose());
         changeEsAptaParaComprar(history);
-        if (this.esAptaParaComprar || monedasActivas.contains(coin)) {
-          actualizarPisos(this.pair);
-    	  Trade	trade = getTradeByPairAndNroPiso(pair, 1L);
-    	  if(null == trade && this.esAptaParaComprar) {
-              System.out.println(String.valueOf(coin) + "Inicio Compra en Constructor Currency(String coin)");
-              JSONObject infoPiso = ConfigSetup.getInfoPiso(Long.valueOf(1L), this.pair);
-              Double porcentaje = Double.valueOf(infoPiso.getDouble(Constants.Table.Pisos.PORCENTAJE_DINERO));
-              BuySell.open(this, porcentaje, Long.valueOf(1L), "ES APTA PARA COMPRAR", new Date().getTime());
-              System.out.println("+++++++++++Compró piso 1 porcentajeDinero:"+ porcentaje +" +++++++++++");
-              System.out.println(String.valueOf(coin) + "Fin Compra en Constructor Venta en Currency(String coin)");        		  
-    	  }
-        } 
     }
     
     
@@ -282,8 +271,10 @@ public class Currency implements Closeable {
     }
     
     
+    
     private Double getMinimo(List<Candlestick> history) {
         List<Candlestick> listaOrdenar = new ArrayList<>(history);
+        
         List<Double> closePrices = (List<Double>)listaOrdenar.stream().map(candle -> Double.valueOf(Double.parseDouble(candle.getClose()))).collect(Collectors.toList());
         Double min = Double.valueOf(closePrices.stream().mapToDouble(Double::doubleValue).min().getAsDouble());
         return min;
