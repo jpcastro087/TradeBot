@@ -153,9 +153,15 @@ public final class Live {
 				System.out.println(e.getMessage());
 			}
 			initializing = false;
+			updateTotalValue();
 			Thread.sleep(2000L);
 		}
 
+	}
+	
+	
+	public static void updateTotalValue() {
+		JDBCPostgres.update("update datos set valor = ? where clave = 'totalValue'", localAccount.getTotalValue());
 	}
 
 	public static void refreshWalletAndTrades() {
