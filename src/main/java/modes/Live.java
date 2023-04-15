@@ -63,158 +63,146 @@ public final class Live {
 	}
 
 	public static void init(String... monedasParam) throws Exception {
-		
-		
-		initializing = true;
-		boolean fileFailed = true;
-		if (credentialsFile.exists()) {
-			try {
-				List<String> strings = Files.readAllLines(credentialsFile.toPath());
-				if (!((String) strings.get(0)).matches("\\*+")) {
-					localAccount = new LocalAccount(strings.get(0), strings.get(1));
-					fileFailed = false;
-				} else {
-					System.out.println("---credentials.txt has not been set up");
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
-				System.out.println("---Failed to use credentials in credentials.txt");
-			}
-		} else {
-			System.out.println("---credentials.txt file not detected!");
-		}
-		if (fileFailed) {
-			String apiKey, apiSecret;
-			Scanner sc = new Scanner(System.in);
-			while (true) {
-				System.out.println("Enter your API Key: ");
-				apiKey = sc.nextLine();
-				if (apiKey.length() == 64) {
-					System.out.println("Enter your Secret Key: ");
-					apiSecret = sc.nextLine();
-					if (apiSecret.length() == 64)
-						break;
-					System.out.println("Secret API is incorrect, enter again.");
-					continue;
-				}
-				System.out.println("Incorrect API, enter again.");
-			}
-			localAccount = new LocalAccount(apiKey, apiSecret);
-		}
-		System.out.println("Can trade: " + localAccount.getRealAccount().isCanTrade());
-		System.out.println(String.valueOf(localAccount.getMakerComission()) + " Maker commission.");
-		System.out.println(String.valueOf(localAccount.getBuyerComission()) + " Buyer commission");
-		System.out.println(String.valueOf(localAccount.getTakerComission()) + " Taker comission");
-		
-		
-		
-		List<AssetBalance> a = CurrentAPI.get().getAccount().getBalances();
-		
-		System.out.println(a);
-		
+
 		List<String> pairs = ConfigSetup.getTodasLasMonedas();
-		
+
 		for (String pair : pairs) {
-			List<Candlestick> history = getHistoryPeriodosAtras(pair, CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
-			
-			if(CollectionUtil.isNullOrEmpty(history))continue;
-			
-			System.out.println(pair);
-			
-			Candlestick velaMayorVolumen = getVelaMayorVolumen(history);
-			if(null == velaMayorVolumen)continue;
-			double precioVelaMayorVolumen = Double.valueOf(velaMayorVolumen.getHigh());
-			Candlestick velaMenorVolumen = getVelaMenorVolumen(history, precioVelaMayorVolumen);
-			
-			if(null != velaMayorVolumen && null != velaMenorVolumen) {
-				System.out.println("Moneda: "+pair
-						+"\n Precio Mayor Volumen: "+ velaMayorVolumen.getLow() 
-						+"\n Precio Menor Volumen: " + velaMenorVolumen.getHigh()
-						+"\n Precio Actual: "+ history.get(history.size()-1).getClose());
+
+			try {
+				List<Candlestick> history = getHistoryPeriodosAtras(pair,
+						CandlestickInterval.valueOf(ConfigSetup.UNIDAD_TIEMPO), ConfigSetup.CANTIDAD_PERIODOS);
+
+				if (CollectionUtil.isNullOrEmpty(history))
+					continue;
+
+				System.out.println(pair);
+
+				Candlestick velaMayorVolumen = getVelaMayorVolumen(history);
+				if (null == velaMayorVolumen)
+					continue;
+				double precioVelaMayorVolumen = Double.valueOf(velaMayorVolumen.getHigh());
+				Candlestick velaMenorVolumen = getVelaMenorVolumen(history, precioVelaMayorVolumen);
+
+				double precioMayorVolumen = Double.valueOf(velaMayorVolumen.getClose());
+				double precioMenorVolumen = Double.valueOf(velaMenorVolumen.getHigh());
+				double precioActual = Double.valueOf(history.get(history.size() - 1).getClose());
+
+				double porcentajeHastaMayorVolumen = ((precioMayorVolumen - precioActual) / precioActual) * 100;
+				double porcentajeHastaMenorVolumen = ((precioMenorVolumen - precioActual) / precioActual) * 100;
+
+				System.out.println("Moneda " + pair + " Porcentaje Hasta Mayor Volumen: " + porcentajeHastaMayorVolumen);
+				System.out.println("Moneda " + pair + " Porcentaje Hasta Menor Volumen: " + porcentajeHastaMenorVolumen);
+
+				JSONObject monedaVolumen = getMonedaVolumenByMoneda(pair);
+
+				if (null == monedaVolumen) {
+					insertMonedaVolumen(pair, porcentajeHastaMayorVolumen, porcentajeHastaMenorVolumen);
+				} else {
+					updateMonedaVolumen(pair, porcentajeHastaMayorVolumen, porcentajeHastaMenorVolumen);
+				}
+				
+				
+				Thread.sleep(500);
+				
+			} catch (Exception e) {
+				System.out.println("Problema con " + pair);
 			}
 
-			
-			
 		}
-		
-
-		 
 
 	}
-	
-	
-    private static Candlestick getVelaMayorVolumen(List<Candlestick> history) {
-    	Candlestick velaMayorVolumen = null;
-    	if(!CollectionUtil.isNullOrEmpty(history)) {
-    		double mayor = Double.valueOf(history.get(0).getVolume());
-    		for (Candlestick candlestick : history) {
-				if(Double.valueOf(candlestick.getVolume()) <= mayor) {
+
+	public static void insertMonedaVolumen(String pair, double porcentajeMayorVolumen, double porcentajeMenorVolumen) {
+		JDBCPostgres.create(
+				"insert into monedavolumen (moneda,porcmayorvolumen, porcmenorvolumen) values(?,?,?); commit;", pair,
+				porcentajeMayorVolumen, porcentajeMenorVolumen);
+	}
+
+	public static void updateMonedaVolumen(String pair, double porcentajeMayorVolumen, double porcentajeMenorVolumen) {
+		JDBCPostgres.update(
+				"update monedavolumen set porcmayorvolumen = ?, porcmenorvolumen= ? where moneda = ?; commit; ",
+				porcentajeMayorVolumen, porcentajeMenorVolumen, pair);
+	}
+
+	public static JSONObject getMonedaVolumenByMoneda(String moneda) {
+		ResultSet rs = JDBCPostgres.getResultSet("select * from monedavolumen where moneda = ?", moneda);
+		JSONObject monedaVolumen = TradeBotUtil.resultSetToJSON(rs);
+
+		return monedaVolumen;
+	}
+
+	private static Candlestick getVelaMayorVolumen(List<Candlestick> history) {
+		Candlestick velaMayorVolumen = null;
+		if (!CollectionUtil.isNullOrEmpty(history)) {
+			double mayor = Double.valueOf(history.get(0).getVolume());
+			for (Candlestick candlestick : history) {
+				if (Double.valueOf(candlestick.getVolume()) <= mayor) {
 					mayor = Double.valueOf(candlestick.getVolume());
 					velaMayorVolumen = candlestick;
 				}
 			}
-    	}
+		}
 
-        return velaMayorVolumen;
-    }
-    
-    private static Candlestick getVelaMenorVolumen(List<Candlestick> history, double precioVelaMayorVolumen) {
-    	Candlestick velaMenorVolumen = null;
-    	if(!CollectionUtil.isNullOrEmpty(history)) {
-    		double menor = Double.valueOf(history.get(0).getVolume());
-    		for (Candlestick candlestick : history) {
-    			double precioVelaActual = Double.valueOf(candlestick.getHigh());
-				if(Double.valueOf(candlestick.getVolume()) >= menor && precioVelaActual >= precioVelaMayorVolumen) {
+		return velaMayorVolumen;
+	}
+
+	private static Candlestick getVelaMenorVolumen(List<Candlestick> history, double precioVelaMayorVolumen) {
+		Candlestick velaMenorVolumen = null;
+		if (!CollectionUtil.isNullOrEmpty(history)) {
+			double menor = Double.valueOf(history.get(0).getVolume());
+			for (Candlestick candlestick : history) {
+				double precioVelaActual = Double.valueOf(candlestick.getHigh());
+				if (Double.valueOf(candlestick.getVolume()) >= menor && precioVelaActual >= precioVelaMayorVolumen) {
 					menor = Double.valueOf(candlestick.getVolume());
 					velaMenorVolumen = candlestick;
 				}
 			}
-    	}
+		}
 
-        return velaMenorVolumen;
-    }
-	
-	
-	private static List<Candlestick> getHistoryPeriodosAtras(String par, CandlestickInterval intervalo, Integer cantidadPeriodos) throws Exception{
+		return velaMenorVolumen;
+	}
 
-    	Calendar cal = Calendar.getInstance();
-    	cal.setTime(new Date());
-    	
-    	switch (intervalo) {
+	private static List<Candlestick> getHistoryPeriodosAtras(String par, CandlestickInterval intervalo,
+			Integer cantidadPeriodos) throws Exception {
+
+		Calendar cal = Calendar.getInstance();
+		cal.setTime(new Date());
+
+		switch (intervalo) {
 		case ONE_MINUTE:
-	    	cal.add(Calendar.MINUTE, -cantidadPeriodos);
+			cal.add(Calendar.MINUTE, -cantidadPeriodos);
 			break;
 		case FIVE_MINUTES:
-	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 5 );
+			cal.add(Calendar.MINUTE, -cantidadPeriodos * 5);
 			break;
 		case FIFTEEN_MINUTES:
-	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 15);
+			cal.add(Calendar.MINUTE, -cantidadPeriodos * 15);
 			break;
 		case HALF_HOURLY:
-	    	cal.add(Calendar.MINUTE, -cantidadPeriodos * 30);
+			cal.add(Calendar.MINUTE, -cantidadPeriodos * 30);
 			break;
 		case HOURLY:
-	    	cal.add(Calendar.HOUR, -cantidadPeriodos);
+			cal.add(Calendar.HOUR, -cantidadPeriodos);
 			break;
 		case FOUR_HOURLY:
-	    	cal.add(Calendar.HOUR, -cantidadPeriodos * 4);
+			cal.add(Calendar.HOUR, -cantidadPeriodos * 4);
 			break;
 		case DAILY:
-	    	cal.add(Calendar.DATE, -cantidadPeriodos);
+			cal.add(Calendar.DATE, -cantidadPeriodos);
 			break;
 		default:
 			throw new Exception("No existe el periodo, cargalo y no rompas las bolas");
 		}
-    	
-    	Date dateBefore1000Periodos = cal.getTime();
-    	long fechaDesde =  dateBefore1000Periodos.getTime();
-    	long fechaHasta =  new Date().getTime();
-    	
-    	
-    	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(par, intervalo, cantidadPeriodos, fechaDesde, fechaHasta);
-    	return history;
-    	
-    }
+
+		Date dateBefore1000Periodos = cal.getTime();
+		long fechaDesde = dateBefore1000Periodos.getTime();
+		long fechaHasta = new Date().getTime();
+
+		List<Candlestick> history = CurrentAPI.get().getCandlestickBars(par, intervalo, cantidadPeriodos, fechaDesde,
+				fechaHasta);
+		return history;
+
+	}
 
 	public static void refreshWalletAndTrades() {
 		for (AssetBalance balance : localAccount.getRealAccount().getBalances()) {
