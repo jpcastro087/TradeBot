@@ -12,6 +12,7 @@ import trading.BuySell;
 import trading.Currency;
 import trading.CurrentAPI;
 import trading.Trade;
+import utils.CollectionUtil;
 import utils.TradeBotUtil;
 
 import java.io.BufferedReader;
@@ -67,6 +68,18 @@ public class ConfigSetup {
 	
 	
 	private static List<String> getCurrenciesToTrack(){
+		List<String> currencies = new ArrayList<String>();
+		
+        ResultSet rs =
+        JDBCPostgres.getResultSet("select moneda from currenciestotrack");
+        List<JSONObject> monedasResult = TradeBotUtil.resultSetToListJSON(rs);
+		
+        if(!CollectionUtil.isNullOrEmpty(monedasResult)) {
+        	for (JSONObject currencytotrack : monedasResult) {
+				currencies.add(currencytotrack.getString("moneda"));
+			}
+        }
+		
 		return currencies;
 	}
 	
