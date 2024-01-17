@@ -110,6 +110,11 @@ public class BuySell {
                 + ", " + trade.getExplanation();
         System.out.println(message);
         if (Mode.get().equals(Mode.BACKTESTING)) currency.appendLogLine(message);
+
+        double fiatValue = Double.parseDouble(CurrentAPI.get().getAccount().getAssetBalance(ConfigSetup.getFiat()).getFree());
+        localAccount.setFiat(fiatValue);
+
+
         System.out.println("Fin método BuySell.open");
     }
 
@@ -135,6 +140,10 @@ public class BuySell {
                 + ", with " + Formatter.formatPercent(trade.getProfit()) + " profit"
                 + "\n------" + trade.getExplanation();
         System.out.println(message);
+
+        double fiatValue = Double.parseDouble(CurrentAPI.get().getAccount().getAssetBalance(ConfigSetup.getFiat()).getFree());
+        localAccount.setFiat(fiatValue);
+
         System.out.println("Fin método BuySell.close");
     }
 

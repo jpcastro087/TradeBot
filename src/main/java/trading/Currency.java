@@ -4,10 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -57,6 +54,8 @@ public class Currency implements Closeable {
 
     //Used for SIMULATION and LIVE
     public Currency(String coin, LocalAccount localAccount) throws Exception {
+
+
         this.pair = String.valueOf(coin) + ConfigSetup.getFiat();
         this.coin = coin;
         this.localAccount = localAccount;
@@ -89,6 +88,7 @@ public class Currency implements Closeable {
     
     
     private void actualizarPisos(String pair) throws Exception {
+		Locale.setDefault(Locale.US);
     	JDBCPostgres.update("update trade set currentprice = ? where closetime is null and currency = ?", String.format("%.9f", currentPrice), pair);
     	List<JSONObject> pisos = ConfigSetup.getPisos(pair);
     	if(!CollectionUtil.isNullOrEmpty(pisos)) {
@@ -171,7 +171,6 @@ public class Currency implements Closeable {
     	Date dateBefore1000Periodos = cal.getTime();
     	long fechaDesde =  dateBefore1000Periodos.getTime();
     	long fechaHasta =  new Date().getTime();
-    	
     	
     	List<Candlestick> history = CurrentAPI.get().getCandlestickBars(par, intervalo, cantidadPeriodos, fechaDesde, fechaHasta);
     	return history;
